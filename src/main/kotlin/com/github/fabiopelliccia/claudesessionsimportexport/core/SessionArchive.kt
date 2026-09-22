@@ -158,15 +158,17 @@ object SessionArchive {
 
                 val writtenId: String
                 val action: String
-                val rewriteId: String?
+                // The id the transcript must refer to from now on: the fresh one when the session
+                // is duplicated, so the `sessionId` inside it matches the file it now lives in.
+                val rewriteToId: String?
                 if (conflict && conflictPolicy == ConflictPolicy.DUPLICATE) {
                     writtenId = UUID.randomUUID().toString()
                     action = "duplicated"
-                    rewriteId = session.id
+                    rewriteToId = writtenId
                 } else {
                     writtenId = session.id
                     action = if (conflict) "overwritten" else "new"
-                    rewriteId = null
+                    rewriteToId = null
                 }
 
                 val cwdRewrite = if (targetProjectPath != null && session.projectPath != null &&
@@ -187,7 +189,7 @@ object SessionArchive {
                     transcriptEntry,
                     targetDir.resolve("$writtenId.jsonl"),
                     originalId = session.id,
-                    rewriteToId = rewriteId,
+                    rewriteToId = rewriteToId,
                     cwdRewrite = cwdRewrite,
                     timestampDelta = timestampDelta,
                 )

@@ -16,6 +16,9 @@ class SessionArchiveTest {
     @get:Rule
     val tmp = TemporaryFolder()
 
+    /** A Windows path only survives inside a JSON string with its backslashes escaped. */
+    private fun String.asJsonString(): String = replace("\\", "\\\\")
+
     private fun writeSourceSession(home: java.nio.file.Path, id: String, cwd: String): SessionInfo {
         val projectDir = home.resolve("projects").resolve(ClaudePaths.encodeProjectPath(cwd))
         Files.createDirectories(projectDir)
@@ -23,7 +26,7 @@ class SessionArchiveTest {
             projectDir.resolve("$id.jsonl"),
             listOf(
                 """{"type":"summary","summary":"Demo session","sessionId":"$id"}""",
-                """{"type":"user","message":{"role":"user","content":"hi"},"timestamp":"2026-01-01T00:00:00.000Z","cwd":"$cwd","sessionId":"$id"}""",
+                """{"type":"user","message":{"role":"user","content":"hi"},"timestamp":"2026-01-01T00:00:00.000Z","cwd":"${cwd.asJsonString()}","sessionId":"$id"}""",
             ),
         )
         val auxDir = projectDir.resolve(id).resolve("tool-results")
@@ -128,7 +131,7 @@ class SessionArchiveTest {
         Files.write(
             projectDir.resolve("session-5.jsonl"),
             listOf(
-                """{"type":"user","message":{"role":"user","content":"first"},"timestamp":"2020-01-01T00:00:00.000Z","cwd":"$cwd","sessionId":"session-5"}""",
+                """{"type":"user","message":{"role":"user","content":"first"},"timestamp":"2020-01-01T00:00:00.000Z","cwd":"${cwd.asJsonString()}","sessionId":"session-5"}""",
                 """{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"second"}]},"timestamp":"2020-01-01T00:00:05.000Z","sessionId":"session-5"}""",
             ),
         )
