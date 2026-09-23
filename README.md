@@ -1,0 +1,2 @@
+# clausdsessionmanager
+Clausd Session Manager
