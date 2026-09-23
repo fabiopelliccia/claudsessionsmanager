@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Import no longer drops the transcript's trailing newline, which could corrupt the file once
+  Claude Code appended to a resumed session.
+- Import keeps `null` fields (such as `"parentUuid":null`) and no longer escapes `<`, `>`, `=`, `'`
+  and `&` as `\u003c`-style sequences: apart from `sessionId`, `cwd` and `timestamp`, every line is
+  written back exactly as recorded, and lines where none of those fields change are kept verbatim.
+- The rewritten `cwd` uses the target platform's separator: a folder picked in IntelliJ as
+  `C:/Users/...` is now recorded as `C:\Users\...`, as Claude Code does, including sub-folders.
+
 ## [1.0.0] - 2026-09-21
 
 ### Added

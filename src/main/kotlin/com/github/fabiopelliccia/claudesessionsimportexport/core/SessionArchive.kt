@@ -1,6 +1,5 @@
 package com.github.fabiopelliccia.claudesessionsimportexport.core
 
-import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
@@ -37,8 +36,10 @@ object SessionArchive {
     private val gson = GsonBuilder().setPrettyPrinting().create()
 
     // JSONL is one compact object per line: the manifest uses the pretty-printed `gson` above, but
-    // rewriting a transcript line must never reformat it onto several lines.
-    private val compactGson = Gson()
+    // rewriting a transcript line must never reformat it onto several lines. Gson's defaults would
+    // also drop `null` members (`"parentUuid":null`) and turn `<`, `>`, `=`, `'`, `&` into `\u003c`
+    // style escapes, so both are switched off to re-emit the line as Claude Code wrote it.
+    private val compactGson = GsonBuilder().serializeNulls().disableHtmlEscaping().create()
 
     private data class ArchiveManifest(
         val formatVersion: Int,
@@ -55,15 +56,29 @@ object SessionArchive {
      * root. A path below [sourceRoot] therefore keeps its relative remainder, and anything else is
      * replaced outright, because it names a folder that only exists on the machine it came from.
      */
-    private class CwdRemap(private val sourceRoot: String?, private val target: String) {
+    private class CwdRemap(private val sourceRoot: String?, target: String) {
+
+        // IntelliJ hands the target over as `C:/Users/...`, while Claude Code records Windows paths
+        // as `C:\Users\...`: the target's own style (a drive letter or a backslash means Windows)
+        // picks the separator, and both the target and any kept remainder are written with it.
+        private val separator = if (target.contains('\\') || WINDOWS_DRIVE.containsMatchIn(target)) '\\' else '/'
+        private val target = target.withSeparator()
+
+        private fun String.withSeparator(): String = replace('/', separator).replace('\\', separator)
 
         fun apply(recorded: String): String {
             if (sourceRoot != null && recorded.startsWith(sourceRoot, ignoreCase = true)) {
                 val rest = recorded.substring(sourceRoot.length)
                 // Only a separator makes it a descendant: `...\Demo` must not swallow `...\Demo2`.
-                if (rest.isEmpty() || rest.startsWith('\\') || rest.startsWith('/')) return target + rest
+                if (rest.isEmpty() || rest.startsWith('\\') || rest.startsWith('/')) {
+                    return target + rest.withSeparator()
+                }
             }
             return target
+        }
+
+        private companion object {
+            val WINDOWS_DRIVE = Regex("^[A-Za-z]:")
         }
     }
 
@@ -229,7 +244,9 @@ object SessionArchive {
      * touching, the entry is copied byte for byte; otherwise each line is parsed and only its
      * `sessionId`, `cwd` and `timestamp` fields (plus the nested `snapshot.timestamp` a
      * `file-history-snapshot` line carries) are rewritten - everything else, in particular anything
-     * under `message`, is re-emitted completely untouched.
+     * under `message`, is re-emitted completely untouched. A line none of those fields changes on is
+     * kept verbatim, and so are the line endings - including the trailing newline Claude Code relies
+     * on when it appends to the transcript of a resumed session.
      */
     private fun writeTranscript(
         zip: ZipFile,
@@ -247,41 +264,51 @@ object SessionArchive {
             return
         }
 
-        val lines = zip.getInputStream(entry).bufferedReader(StandardCharsets.UTF_8).readLines()
-        val rewritten = lines.map { line ->
-            if (line.isBlank()) return@map line
+        val text = zip.getInputStream(entry).bufferedReader(StandardCharsets.UTF_8).readText()
+        // Splitting on `\n` alone keeps a `\r` on its own line and turns the trailing newline into a
+        // final empty element, so joining back reproduces the original layout exactly.
+        val rewritten = text.split('\n').map { rawLine ->
+            val line = rawLine.removeSuffix("\r")
+            if (line.isBlank()) return@map rawLine
             val obj = runCatching { JsonParser.parseString(line) }.getOrNull()
-                ?.takeIf { it.isJsonObject }?.asJsonObject ?: return@map line
-            rewriteLine(obj, originalId, rewriteToId, cwdRemap, timestampDelta)
-            compactGson.toJson(obj)
+                ?.takeIf { it.isJsonObject }?.asJsonObject ?: return@map rawLine
+            if (!rewriteLine(obj, originalId, rewriteToId, cwdRemap, timestampDelta)) return@map rawLine
+            compactGson.toJson(obj) + rawLine.substring(line.length)
         }
         Files.write(target, rewritten.joinToString("\n").toByteArray(StandardCharsets.UTF_8))
     }
 
+    /** Returns whether any field actually changed, so that an untouched line can be kept verbatim. */
     private fun rewriteLine(
         obj: JsonObject,
         originalId: String,
         rewriteToId: String?,
         cwdRemap: CwdRemap?,
         timestampDelta: Duration,
-    ) {
-        rewriteStringField(obj, "sessionId") { text ->
+    ): Boolean {
+        var changed = rewriteStringField(obj, "sessionId") { text ->
             if (rewriteToId != null && text == originalId) rewriteToId else null
         }
-        rewriteStringField(obj, "cwd") { text -> cwdRemap?.apply(text) }
-        rewriteStringField(obj, "timestamp") { text -> TimestampShift.shift(text, timestampDelta) }
+        changed = rewriteStringField(obj, "cwd") { text -> cwdRemap?.apply(text) } || changed
+        changed = rewriteStringField(obj, "timestamp") { text -> TimestampShift.shift(text, timestampDelta) } || changed
 
         // The only known nested spot: a `file-history-snapshot` line carries a second copy of the
         // timestamp one level down, under `snapshot`.
         obj.get("snapshot")?.takeIf { it.isJsonObject }?.asJsonObject?.let { snapshot ->
-            rewriteStringField(snapshot, "timestamp") { text -> TimestampShift.shift(text, timestampDelta) }
+            changed = rewriteStringField(snapshot, "timestamp") { text ->
+                TimestampShift.shift(text, timestampDelta)
+            } || changed
         }
+        return changed
     }
 
-    private fun rewriteStringField(obj: JsonObject, key: String, transform: (String) -> String?) {
-        val element = obj.get(key) ?: return
-        if (!element.isJsonPrimitive || !element.asJsonPrimitive.isString) return
-        transform(element.asString)?.let { obj.addProperty(key, it) }
+    private fun rewriteStringField(obj: JsonObject, key: String, transform: (String) -> String?): Boolean {
+        val element = obj.get(key) ?: return false
+        if (!element.isJsonPrimitive || !element.asJsonPrimitive.isString) return false
+        val current = element.asString
+        val replacement = transform(current)?.takeIf { it != current } ?: return false
+        obj.addProperty(key, replacement)
+        return true
     }
 
     private fun extractAuxFiles(zip: ZipFile, prefix: String, targetDir: Path) {

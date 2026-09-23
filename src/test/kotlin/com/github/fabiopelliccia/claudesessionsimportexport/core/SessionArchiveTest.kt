@@ -240,4 +240,70 @@ class SessionArchiveTest {
             Files.list(targetHome.resolve("projects").resolve(ClaudePaths.encodeProjectPath(cwd))).use { it.count() } > 2,
         )
     }
+
+    @Test
+    fun `an imported line is identical to the original except for sessionId, cwd and timestamp`() {
+        // Shapes taken from real transcripts, with everything a re-serialization tends to alter:
+        // `null` members, HTML-sensitive characters, escaped control characters, non-ASCII text,
+        // decimal numbers, a nested snapshot timestamp and a line carrying none of the three fields.
+        // `{ROOT}`, `{SID}` and `{TS}` mark the only spots an import may rewrite.
+        val templates = listOf(
+            """{"parentUuid":null,"isSidechain":false,"cwd":"{ROOT}","sessionId":"{SID}","type":"user","message":{"role":"user","content":"<command-name>/model</command-name> a=b && 'c' è\n\tfine"},"uuid":"u-1","timestamp":"{TS}"}""",
+            """{"parentUuid":"u-1","cwd":"{ROOT}\\src\\main","sessionId":"{SID}","type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"<b>ok</b>"}],"stop_reason":null,"usage":{"input_tokens":12,"cost":1.50}},"uuid":"a-1","timestamp":"{TS}"}""",
+            """{"type":"file-history-snapshot","messageId":"u-1","snapshot":{"messageId":"u-1","trackedFileBackups":{},"timestamp":"{TS}"},"isSnapshotUpdate":false}""",
+            """{"type":"summary","summary":"a <b> & 'c' = d","leafUuid":null}""",
+        )
+        val sourceTimestamps = listOf("2026-01-01T10:00:00.000Z", "2026-01-01T10:00:05.250Z", "2026-01-01T10:00:06.000Z", null)
+        fun fill(template: String, root: String, id: String, ts: String?) = template
+            .replace("{ROOT}", root.asJsonString())
+            .replace("{SID}", id)
+            .let { if (ts != null) it.replace("{TS}", ts) else it }
+
+        val sourceHome = tmp.newFolder("source8", ".claude").toPath()
+        val sourceRoot = "C:\\Users\\fabio\\Demo8"
+        val projectDir = sourceHome.resolve("projects").resolve(ClaudePaths.encodeProjectPath(sourceRoot))
+        Files.createDirectories(projectDir)
+        val originalLines = templates.mapIndexed { i, t -> fill(t, sourceRoot, "session-8", sourceTimestamps[i]) }
+        // Claude Code terminates every line, the last one included.
+        Files.writeString(projectDir.resolve("session-8.jsonl"), originalLines.joinToString("\n") + "\n")
+        val session = SessionScanner.listSessions(sourceHome).single()
+
+        val archive = tmp.root.toPath().resolve("archive8.zip")
+        SessionArchive.export(listOf(session), archive, home = sourceHome)
+
+        // Importing twice makes the second copy a duplicate, so all three fields get rewritten. The
+        // target is given the way IntelliJ's `project.basePath` spells it, with forward slashes.
+        val targetHome = tmp.newFolder("target8", ".claude").toPath()
+        val targetRoot = "D:/Work/Demo8"
+        SessionArchive.import(archive, home = targetHome, targetProjectPath = targetRoot)
+        val duplicated = SessionArchive.import(archive, home = targetHome, targetProjectPath = targetRoot)
+            .imported.single()
+        assertEquals("duplicated", duplicated.action)
+
+        val importedText = Files.readString(
+            targetHome.resolve("projects")
+                .resolve(ClaudePaths.encodeProjectPath(targetRoot))
+                .resolve("${duplicated.writtenId}.jsonl"),
+        )
+        assertTrue("the trailing newline must survive the import", importedText.endsWith("\n"))
+        val importedLines = importedText.removeSuffix("\n").split("\n")
+        assertEquals(originalLines.size, importedLines.size)
+
+        val importedTimestamps = importedLines.map { line ->
+            val obj = JsonParser.parseString(line).asJsonObject
+            (obj.get("timestamp") ?: obj.getAsJsonObject("snapshot")?.get("timestamp"))?.asString
+        }
+        templates.forEachIndexed { i, template ->
+            // Claude Code on Windows records backslashes: the target is normalized to that form.
+            val expected = fill(template, "D:\\Work\\Demo8", duplicated.writtenId, importedTimestamps[i])
+            assertEquals("line $i", expected, importedLines[i])
+        }
+
+        // The timestamps must really have moved, all by one and the same delta.
+        val deltas = sourceTimestamps.zip(importedTimestamps).mapNotNull { (before, after) ->
+            if (before == null || after == null) null else Duration.between(Instant.parse(before), Instant.parse(after))
+        }
+        assertEquals(3, deltas.size)
+        assertTrue(deltas.all { it == deltas.first() } && !deltas.first().isZero)
+    }
 }
