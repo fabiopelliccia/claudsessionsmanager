@@ -4,6 +4,7 @@ import com.github.fabiopelliccia.claudesessionsimportexport.core.ClaudeSessionsB
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
+import com.intellij.openapi.actionSystem.ex.ActionUtil
 import com.intellij.openapi.project.DumbAware
 
 /**
@@ -31,5 +32,8 @@ class ClaudeSessionsActionGroup : DefaultActionGroup(), DumbAware {
 
     override fun update(e: AnActionEvent) {
         e.presentation.text = ClaudeSessionsBundle.message("group.ClaudeSessionsImportExport.Menu.text")
+        // The main menu hides icons on macOS unless an entry asks for it: the plugin icon is how the
+        // submenu is recognized among the Tools entries, so it is shown everywhere.
+        e.presentation.putClientProperty(ActionUtil.SHOW_ICON_IN_MAIN_MENU, true)
     }
 }

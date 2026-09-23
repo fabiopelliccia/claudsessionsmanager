@@ -5,6 +5,7 @@ import com.github.fabiopelliccia.claudesessionsimportexport.core.ClaudeSessionsB
 import com.github.fabiopelliccia.claudesessionsimportexport.core.PluginNames
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.ex.ActionUtil
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
@@ -41,6 +42,7 @@ abstract class ClaudeSessionActionBase(
     override fun update(e: AnActionEvent) {
         e.presentation.text = ClaudeSessionsBundle.message(textKey)
         e.presentation.description = ClaudeSessionsBundle.message(descriptionKey)
+        e.presentation.putClientProperty(ActionUtil.SHOW_ICON_IN_MAIN_MENU, true)
     }
 
     final override fun actionPerformed(e: AnActionEvent) {

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.1] - 2026-09-23
+
+Development version.
+
+### Added
+
+- The *Tools* submenu and its *Export Sessions...* and *Import Sessions...* entries show the plugin
+  icon in the main menu on every platform, including the macOS system menu, where IntelliJ hides menu
+  icons unless an entry asks for them.
+
+### Changed
+
+- The documentation states what happens after installing and after importing, as verified on
+  IntelliJ IDEA 2026.2.3: the plugin is loaded dynamically, without restarting the IDE, and imported
+  sessions are listed by `claude --resume` right away, so neither step asks for a restart. It also
+  explains why *Install Plugin from Disk* shows the generic plugin icon while the plugin is read from
+  its ZIP, and where the plugin logo is shown instead.
+
 ## [0.0.0] - 2026-09-23
 
 Development version.

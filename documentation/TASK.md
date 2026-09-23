@@ -1,9 +1,9 @@
-# Work order 0.0.0 — Session Porter for Claude Code
+# Work order 0.0.1 — Session Porter for Claude Code
 
 > **Destinatario:** l'agente di sviluppo che lavora su questo repository.
 > **Ruolo:** sviluppatore del plugin IntelliJ qui contenuto.
 > **Istruzione:** leggi l'intero documento prima di toccare il codice. Descrive il perimetro
-> funzionale e i vincoli della **0.0.0**, la versione di sviluppo attuale: è la specifica di
+> funzionale e i vincoli della **0.0.1**, la versione di sviluppo attuale: è la specifica di
 > riferimento, non un elenco di modifiche incrementali. Ogni intervento futuro parte da qui e, al
 > termine, deve superare la checklist di §8.
 
@@ -89,7 +89,7 @@ descrive Claude Code (vedi §3).
 
 ---
 
-## 2. Perimetro funzionale della 0.0.0
+## 2. Perimetro funzionale della 0.0.1
 
 * **`Tools | Claude Code sessions | Export Sessions...`** — elenco di tutte le sessioni locali
   (nome, cartella, branch, data, messaggi, dimensione, id) con filtro e selezione multipla; salva la
@@ -133,7 +133,15 @@ database del plugin da aggiornare, nessun ponte verso le API di un altro plugin,
 una sola volta all'apertura del progetto. L'elenco viene ricostruito da disco a ogni `--resume`, per
 cui dopo un import **non serve alcun riavvio**; la notifica offre invece di copiare il comando di
 ripresa. Sezioni, classi e azioni che nel progetto gemello riguardano quella seconda metà
-(`IdeSessionRecord`, il bridge verso il plugin, *Restart IDE now*) qui non hanno equivalente.
+(`IdeSessionRecord`, il bridge verso il plugin, *Restart IDE now*) qui non hanno equivalente. Lo
+stesso vale per il plugin ufficiale *Claude Code [Beta]* (`com.anthropic.code.plugin`): apre la CLI nel
+terminale e fornisce gli strumenti MCP dell'IDE, ma non tiene un elenco delle sessioni da aggiornare.
+
+Anche l'installazione non richiede riavvio: il plugin è idoneo al caricamento dinamico (nessun
+componente di applicazione o di progetto, solo azioni, un gruppo di notifiche e un resource bundle) e
+IntelliJ lo carica subito, come registra `DynamicPluginsSupportImpl - load plugin` nel log dell'IDE.
+Il plugin non deve quindi chiedere un riavvio né dopo l'installazione né dopo un import; se una
+modifica futura lo rendesse non dinamico, `failureLevel = ALL` (`NOT_DYNAMIC`) fa fallire la build.
 
 Non si esportano `history.jsonl` (cronologia dei prompt digitati, che ne contiene il testo e non
 serve a riprendere una sessione), `session-env/`, `shell-snapshots/` e `sessions/` (stato dei
@@ -321,14 +329,24 @@ Due asset distinti, perché servono a due scopi diversi, entrambi vettoriali:
   terminale per la CLI a cui appartengono le sessioni. Nessuna nuvola di chat, nessun marchio di terzi.
 * `icons/claudeSessions.svg` e `claudeSessions_dark.svg` — l'**icona d'azione** 16×16 usata nei
   menu: a 16 px l'emblema completo sarebbe illeggibile, quindi riprende solo le due frecce
-  contrapposte, con gli stessi colori del logo.
+  contrapposte, con gli stessi colori del logo. È dichiarata su gruppo e azioni in `plugin.xml`, e il
+  loro `update()` imposta `ActionUtil.SHOW_ICON_IN_MAIN_MENU`, così compare anche nel menu principale di
+  macOS, che altrimenti nasconde le icone.
+
+IntelliJ cerca il logo del plugin con `PluginLogo`: in una cartella installata dentro i jar di `lib/`,
+in un file ZIP (il dialogo *Install Plugin from Disk*) alla radice dell'archivio. Il logo resta dentro
+il jar, come prevede il formato di distribuzione: nel dialogo di installazione da disco compare quindi
+l'icona generica, mentre il plugin installato e la pagina del Marketplace mostrano il logo. Non va
+aggiunto un `META-INF/` alla radice dello ZIP: lo ZIP di un plugin contiene una sola cartella radice.
 
 ### 7.2 Versione
 
-`gradle.properties` → `pluginVersion=0.0.0`: il progetto è in sviluppo e non ha ancora versioni
-rilasciate.
+`gradle.properties` → `pluginVersion=0.0.1`: il progetto è in sviluppo e non ha ancora versioni
+rilasciate sul Marketplace.
 
-`CHANGELOG.md` contiene un'unica sezione **datata** `## [0.0.0] - 2026-09-23`. La data è obbligatoria:
+`CHANGELOG.md` contiene una sezione **datata** per versione, la più recente in cima:
+`## [0.0.1] - 2026-09-23` e `## [0.0.0] - 2026-09-23`. Le sezioni precedenti non si cancellano mai. La
+data è obbligatoria:
 alimenta l'intestazione `[versione] - [data]` del riquadro **What's New**. La sezione
 `## [Unreleased]` resta vuota, perché senza data non potrebbe alimentare quell'intestazione.
 
@@ -372,8 +390,8 @@ Marketplace*.
 
 1. `./gradlew test` verde.
 2. `./gradlew patchPluginXml`: in `build/tmp/patchPluginXml/plugin.xml` il `<name>` è
-   `Session Porter for Claude Code` e `<change-notes>` inizia con `[0.0.0] - 2026-09-23`.
-3. `./gradlew buildPlugin`: lo ZIP si chiama `session-porter-for-claude-code-0.0.0.zip` e il jar che contiene
+   `Session Porter for Claude Code` e `<change-notes>` inizia con `[0.0.1] - 2026-09-23`.
+3. `./gradlew buildPlugin`: lo ZIP si chiama `session-porter-for-claude-code-0.0.1.zip` e il jar che contiene
    include `icons/claudeSessions.svg`, `icons/claudeSessions_dark.svg`, `META-INF/pluginIcon.svg`,
    `META-INF/pluginIcon_dark.svg`, i dieci `messages/ClaudeSessionsBundle*.properties` e
    `META-INF/licenses/`; accanto al jar, in `lib/`, c'è solo `gson-2.11.0.jar`.
@@ -384,6 +402,6 @@ Marketplace*.
 6. `core/` non importa nulla da `com.intellij.*`.
 7. Ogni traduzione ha esattamente le chiavi del file inglese (`ClaudeSessionsBundleTest`).
 8. `README.md` e `CHANGELOG.md` descrivono ogni comportamento osservabile.
-9. Nessun riferimento a versioni del plugin diverse dalla 0.0.0 in codice, documentazione e messaggi
-   utente.
+9. Nessun riferimento a versioni del plugin diverse dalla 0.0.1 in codice, documentazione e messaggi
+   utente, salvo lo storico di `CHANGELOG.md` e l'informativa privacy, che vale dalla 0.0.0.
 10. `<vendor>` ha `url` ed `email` validi, e i link della descrizione rispondono sul branch `main`.

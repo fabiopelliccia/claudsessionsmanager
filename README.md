@@ -8,7 +8,7 @@ Permette di scegliere puntualmente quali conversazioni esportare e quali riprist
 alla cartella di progetto della macchina di destinazione e di ritrovarle subito con
 `claude --resume`, datate come se fossero appena avvenute.
 
-> Versione di sviluppo **0.0.0**.
+> Versione di sviluppo **0.0.1**.
 
 ## Funzionalità
 
@@ -27,6 +27,30 @@ alla cartella di progetto della macchina di destinazione e di ritrovarle subito 
   in [Cartella di lavoro e visibilità](#cartella-di-lavoro-e-visibilità).
 * **Notifica di esito** per entrambe le operazioni. Dopo un import offre **"Show import log"** e,
   quando almeno una sessione è stata importata, **"Copy resume command"**.
+
+Il sottomenu *Tools → Claude Code sessions* e le sue due voci mostrano l'icona del plugin anche nel
+menu principale di macOS, dove IntelliJ nasconde le icone delle voci che non lo chiedono
+esplicitamente (`ActionUtil.SHOW_ICON_IN_MAIN_MENU`).
+
+## Installazione e riavvii
+
+* **Dopo l'installazione non serve riavviare l'IDE.** Il plugin è idoneo al caricamento dinamico:
+  IntelliJ lo carica subito (nel log dell'IDE compare
+  `DynamicPluginsSupportImpl - load plugin 'Session Porter for Claude Code'`) e il menu *Tools* lo
+  mostra immediatamente. Lo stesso vale per la disattivazione e la disinstallazione. Il Plugin
+  Verifier lo conferma su ogni build verificata; se un giorno il caricamento dinamico non fosse
+  possibile, sarebbe IntelliJ stesso a chiedere il riavvio.
+* **Dopo un import non serve riavviare l'IDE.** Claude Code non tiene un elenco delle sessioni
+  dentro l'IDE — nemmeno il plugin ufficiale *Claude Code [Beta]*, che apre la CLI nel terminale:
+  `claude --resume` rilegge i transcript da disco ogni volta, quindi le sessioni importate compaiono
+  subito. Vedi [Una sessione, un posto solo](#una-sessione-un-posto-solo).
+* **Icona durante "Install Plugin from Disk".** Finché il plugin viene letto dallo ZIP, cioè nel
+  dialogo di installazione da disco, IntelliJ cerca il logo alla radice dell'archivio e mostra
+  l'icona generica dei plugin: il logo (`META-INF/pluginIcon.svg`) sta dentro il jar del plugin, come
+  prevede il formato di distribuzione. Una volta installato, IntelliJ lo legge dal jar in `lib/`; sul
+  Marketplace è il logo mostrato nella pagina del plugin. Se la pagina *Settings | Plugins* aperta
+  durante l'installazione mostra ancora l'icona generica, basta riaprirla o riavviare l'IDE: è solo
+  un'immagine già caricata, il plugin funziona comunque.
 
 ## Cosa viene esportato
 
@@ -288,7 +312,7 @@ La coppia chiave/certificato si genera come descritto nella
 il token si crea dal profilo sul [Marketplace](https://plugins.jetbrains.com/author/me/tokens).
 
 Il canale di pubblicazione è dedotto da `pluginVersion`: una versione senza suffisso va sul canale
-`default`, mentre una pre-release come `0.0.0-beta.1` va sul canale omonimo (`beta`), visibile solo a
+`default`, mentre una pre-release come `0.0.1-beta.1` va sul canale omonimo (`beta`), visibile solo a
 chi lo ha aggiunto fra i repository dei plugin.
 
 ### Compatibilità

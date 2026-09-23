@@ -26,7 +26,8 @@
     Spanish, Portuguese, Japanese, Chinese and Korean.
     </p>
     <p>
-    The plugin works entirely offline: it collects no data and never connects to any server.
+    The plugin is loaded right after installation, with no IDE restart, and works entirely offline: it
+    collects no data and never connects to any server.
     Open source under the <a href="https://github.com/fabiopelliccia/claudsessionsmanager/blob/main/LICENSE">MIT License</a> -
     <a href="https://github.com/fabiopelliccia/claudsessionsmanager">source code</a>,
     <a href="https://github.com/fabiopelliccia/claudsessionsmanager/blob/main/PRIVACY.md">privacy policy</a>,
