@@ -110,4 +110,10 @@ tasks {
     test {
         useJUnit()
     }
+
+    // The sandbox IDE reads and writes an isolated Claude Code home instead of the real ~/.claude,
+    // so trying out export/import never touches the developer's actual sessions.
+    runIde {
+        jvmArgs("-Dclaude.home=${layout.buildDirectory.dir("claude-home-test").get().asFile}")
+    }
 }
