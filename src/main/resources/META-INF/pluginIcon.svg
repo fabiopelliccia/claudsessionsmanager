@@ -1,0 +1,14 @@
+<svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+  <!-- Emblem of the plugin: a ring, the import arrow (green, in) and the export arrow (blue, out)
+       facing each other, and a terminal prompt for the Claude Code CLI the sessions belong to. -->
+  <circle cx="20" cy="20" r="17.5" fill="none" stroke="#D97757" stroke-width="3"/>
+  <!-- Import: pointing down, into the machine. -->
+  <path d="M13 10.5V23.5" fill="none" stroke="#59A869" stroke-width="3" stroke-linecap="round"/>
+  <path d="M8.8 22.2H17.2L13 28.8Z" fill="#59A869" stroke="#59A869" stroke-width="1" stroke-linejoin="round"/>
+  <!-- Export: pointing up, out of the machine. -->
+  <path d="M27 29.5V16.5" fill="none" stroke="#3574F0" stroke-width="3" stroke-linecap="round"/>
+  <path d="M22.8 17.8H31.2L27 11.2Z" fill="#3574F0" stroke="#3574F0" stroke-width="1" stroke-linejoin="round"/>
+  <!-- Terminal prompt. -->
+  <path d="M17.6 17.4L20.6 20L17.6 22.6" fill="none" stroke="#6C707E" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M19.6 24.4H23" fill="none" stroke="#6C707E" stroke-width="1.6" stroke-linecap="round"/>
+</svg>

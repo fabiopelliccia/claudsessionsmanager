@@ -1,0 +1,8 @@
+<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <!-- The two arrows of the plugin emblem, the only part still readable at 16 px:
+       import (green, pointing in) and export (blue, pointing out), facing each other. -->
+  <path d="M4.5 2V10" fill="none" stroke="#5FB870" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M1.8 9.2H7.2L4.5 13.6Z" fill="#5FB870"/>
+  <path d="M11.5 14V6" fill="none" stroke="#548AF7" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M8.8 6.8H14.2L11.5 2.4Z" fill="#548AF7"/>
+</svg>

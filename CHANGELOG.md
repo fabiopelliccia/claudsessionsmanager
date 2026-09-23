@@ -7,26 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
+## [0.0.0] - 2026-09-23
 
-- Import no longer drops the transcript's trailing newline, which could corrupt the file once
-  Claude Code appended to a resumed session.
-- Import keeps `null` fields (such as `"parentUuid":null`) and no longer escapes `<`, `>`, `=`, `'`
-  and `&` as `\u003c`-style sequences: apart from `sessionId`, `cwd` and `timestamp`, every line is
-  written back exactly as recorded, and lines where none of those fields change are kept verbatim.
-- The rewritten `cwd` uses the target platform's separator: a folder picked in IntelliJ as
-  `C:/Users/...` is now recorded as `C:\Users\...`, as Claude Code does, including sub-folders.
-
-## [1.0.0] - 2026-09-21
+Development version.
 
 ### Added
 
-- Initial release. Export and import Claude Code chat sessions (`~/.claude/projects/<project>/<sessionId>.jsonl`
-  plus the auxiliary per-session folder) as a portable ZIP archive, with a simple checkbox-list picker
-  and safe-by-default duplicate handling on import.
-- Cross-machine import: the import dialog asks which local project folder to attach the sessions
-  to and rewrites each transcript's `cwd` field accordingly, since the folder recorded in the
-  archive belongs to the source machine and is otherwise meaningless.
-- Imported sessions have their timestamps shifted by a single per-session delta so they land around
-  "now" instead of when they were originally recorded, while keeping the original spacing between
-  their own messages.
+- Export and import of Claude Code chat sessions as a portable ZIP archive: the transcript
+  (`~/.claude/projects/<project>/<sessionId>.jsonl`), its auxiliary folder and its file history
+  (`~/.claude/file-history/<sessionId>/`, the backups behind checkpoints and `/rewind`).
+- Session tables with a quick filter, multiple selection and the name, folder, branch, last update,
+  number of messages, size and id of every session; the import table marks the sessions that are
+  already present.
+- Conflict policies on import - *Skip*, *Replace* and *Duplicate* (the default, which imports under a
+  new id) - applied to a session whose id exists in any project folder, not only in the target one.
+- *Attach the imported sessions to this folder*: the transcript is written to the project folder
+  Claude Code reads for that directory, and every `cwd` is rewritten in the form Claude Code records
+  it (`C:\Users\...`, not IntelliJ's `C:/Users/...`), sub-folders included. File paths tracked by the
+  file history are remapped with it when they lie below the source root.
+- Timestamps of an imported session are shifted by one delta, so it ends at import time and keeps the
+  spacing between its messages; every ISO timestamp keeps the shape it was read in, and the epoch of
+  the `cost-state` line moves with them.
+- Structural rewrite of the transcript: only the machine facing fields (`sessionId`, `session_id`,
+  `cwd`, file history paths and timestamps) change. Lines none of them touches are copied byte for
+  byte, `null` fields and characters such as `<`, `=` or `&` are written back as they were, and line
+  endings are preserved, including the trailing newline Claude Code relies on to append to a resumed
+  session.
+- The outcome of an import is re-read from disk and shown in the notification, together with every
+  failed check of the visibility diagnosis and the actions *Copy resume command* and *Show import
+  log*. No IDE restart is needed: `claude --resume` lists an imported session right away. A session
+  that fails does not stop the others.
+- Diagnostic import log in `<IDE log folder>/claude-sessions-import/`, always written: environment,
+  operation context, per-session steps, thirteen numbered `OK`/`KO` visibility checks, a comparison
+  with the most recent native session of the target folder and a summary. It never contains
+  conversation text, values are truncated to 300 characters and only the last 20 logs are kept.
+- The export reports every file it could not read, and only then suggests closing the Claude Code
+  sessions using it and exporting again; the manifest lists exactly the sessions written to the
+  archive.
+- Localized interface - menu, dialogs, tables, notifications, warnings, errors, progress and import
+  log sections - in English, Italian, French, German, Spanish, Portuguese, Japanese, Chinese and
+  Korean, following the IDE language when a language pack is installed and the regional settings of
+  the operating system otherwise.
+- Plugin logo and menu icon with dark variants: a ring with the green import arrow and the blue
+  export arrow facing each other.
+- The `runIde` sandbox works on `build/claude-home-test` instead of the real `~/.claude`.

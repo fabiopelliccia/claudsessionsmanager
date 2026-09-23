@@ -1,8 +1,8 @@
 <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-  <!-- Export half of the transfer cycle. -->
-  <path d="M6.290 12.698A5 5 0 0 1 5.500 3.670" fill="none" stroke="#D97757" stroke-width="1.7" stroke-linecap="round"/>
-  <path d="M8.452 2.513L6.342 5.197L5.110 1.813Z" fill="#D97757"/>
-  <!-- Import half of the transfer cycle. -->
-  <path d="M9.710 3.302A5 5 0 0 1 10.500 12.330" fill="none" stroke="#B85C3E" stroke-width="1.7" stroke-linecap="round"/>
-  <path d="M7.548 13.485L9.658 10.801L10.890 14.185Z" fill="#B85C3E"/>
+  <!-- The two arrows of the plugin emblem, the only part still readable at 16 px:
+       import (green, pointing in) and export (blue, pointing out), facing each other. -->
+  <path d="M4.5 2V10" fill="none" stroke="#59A869" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M1.8 9.2H7.2L4.5 13.6Z" fill="#59A869"/>
+  <path d="M11.5 14V6" fill="none" stroke="#3574F0" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M8.8 6.8H14.2L11.5 2.4Z" fill="#3574F0"/>
 </svg>

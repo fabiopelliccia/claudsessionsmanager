@@ -3,6 +3,7 @@ package com.github.fabiopelliccia.claudesessionsimportexport.core
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.extension
@@ -20,37 +21,32 @@ object SessionScanner {
 
     private const val PREVIEW_MAX_LENGTH = 140
 
-    fun listSessions(home: Path = ClaudePaths.resolveHome()): List<SessionInfo> {
-        val projectsDir = ClaudePaths.projectsDir(home)
-        if (!projectsDir.isDirectory()) return emptyList()
+    fun listSessions(home: Path = ClaudePaths.resolveHome()): List<SessionInfo> =
+        transcripts(home)
+            .map { describe(it, home) }
+            .sortedByDescending { it.lastTimestamp ?: "" }
 
-        val sessions = mutableListOf<SessionInfo>()
-        Files.list(projectsDir).use { projectDirs ->
-            projectDirs.asSequence()
-                .filter { it.isDirectory() }
-                .forEach { projectDir ->
-                    Files.list(projectDir).use { entries ->
-                        entries.asSequence()
-                            .filter { it.isRegularFile() && it.extension == "jsonl" }
-                            .forEach { transcript ->
-                                sessions += readSession(projectDir, transcript)
-                            }
-                    }
-                }
-        }
-        return sessions.sortedByDescending { it.lastTimestamp ?: "" }
-    }
+    /**
+     * Every local transcript, grouped by session id, reading file names only. An id normally lives
+     * in one project folder, but nothing stops two folders from holding the same one, and a
+     * conflict has to see them all.
+     */
+    fun existingTranscripts(home: Path = ClaudePaths.resolveHome()): Map<String, List<Path>> =
+        transcripts(home).groupBy { it.nameWithoutExtension }
 
-    private fun readSession(projectDir: Path, transcript: Path): SessionInfo {
+    /** Reads a single transcript - the import uses it to re-read what it has just written. */
+    fun describe(transcript: Path, home: Path = ClaudePaths.resolveHome()): SessionInfo {
+        val projectDir = transcript.parent
         val id = transcript.nameWithoutExtension
         var firstTimestamp: String? = null
         var lastTimestamp: String? = null
         var cwd: String? = null
+        var gitBranch: String? = null
         var summary: String? = null
         var preview: String? = null
         var messageCount = 0
 
-        Files.newBufferedReader(transcript).use { reader ->
+        Files.newBufferedReader(transcript, StandardCharsets.UTF_8).use { reader ->
             reader.lineSequence().forEach { line ->
                 if (line.isBlank()) return@forEach
                 val obj = runCatching { JsonParser.parseString(line) }.getOrNull()
@@ -61,13 +57,14 @@ object SessionScanner {
                     lastTimestamp = ts
                 }
                 if (cwd == null) cwd = obj.stringOrNull("cwd")
+                obj.stringOrNull("gitBranch")?.takeIf { it.isNotBlank() }?.let { gitBranch = it }
 
                 when (obj.stringOrNull("type")) {
                     "summary" -> summary = obj.stringOrNull("summary") ?: summary
                     "user", "assistant" -> {
                         messageCount++
                         if (preview == null && obj.stringOrNull("type") == "user" &&
-                            obj.get("isMeta")?.asBoolean != true
+                            obj.get("isMeta")?.takeIf { it.isJsonPrimitive }?.asBoolean != true
                         ) {
                             preview = extractPreview(obj)
                         }
@@ -76,7 +73,6 @@ object SessionScanner {
             }
         }
 
-        val auxDir = projectDir.resolve(id)
         return SessionInfo(
             id = id,
             projectFolderName = projectDir.name,
@@ -86,12 +82,29 @@ object SessionScanner {
             messageCount = messageCount,
             sizeBytes = runCatching { Files.size(transcript) }.getOrDefault(0L),
             summary = summary ?: preview,
-            hasAuxData = auxDir.isDirectory(),
+            hasAuxData = projectDir.resolve(id).isDirectory(),
+            gitBranch = gitBranch,
+            hasFileHistory = ClaudePaths.fileHistoryDir(home).resolve(id).isDirectory(),
         )
     }
 
+    private fun transcripts(home: Path): List<Path> {
+        val projectsDir = ClaudePaths.projectsDir(home)
+        if (!projectsDir.isDirectory()) return emptyList()
+        return Files.list(projectsDir).use { projectDirs ->
+            projectDirs.asSequence()
+                .filter { it.isDirectory() }
+                .flatMap { projectDir ->
+                    Files.list(projectDir).use { entries ->
+                        entries.asSequence().filter { it.isRegularFile() && it.extension == "jsonl" }.toList()
+                    }
+                }
+                .toList()
+        }
+    }
+
     private fun extractPreview(userLine: JsonObject): String? {
-        val message = userLine.getAsJsonObject("message") ?: return null
+        val message = userLine.get("message")?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
         val content = message.get("content") ?: return null
         val text = when {
             content.isJsonPrimitive -> content.asString

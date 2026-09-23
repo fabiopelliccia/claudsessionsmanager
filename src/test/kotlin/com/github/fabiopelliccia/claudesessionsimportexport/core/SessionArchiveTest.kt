@@ -8,8 +8,10 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.nio.file.Files
+import java.nio.file.Path
 import java.time.Duration
 import java.time.Instant
+import java.util.Locale
 
 class SessionArchiveTest {
 
@@ -305,5 +307,190 @@ class SessionArchiveTest {
         }
         assertEquals(3, deltas.size)
         assertTrue(deltas.all { it == deltas.first() } && !deltas.first().isZero)
+    }
+
+    /**
+     * A session the way Claude Code leaves it after editing a file: a conversation line, a
+     * `file-history-snapshot` line tracking `a.kt` below the project root and the backup itself
+     * under `<home>/file-history/<id>/`.
+     */
+    private fun writeSessionWithHistory(home: Path, id: String, cwd: String, withBackupFile: Boolean = true): SessionInfo {
+        val projectDir = home.resolve("projects").resolve(ClaudePaths.encodeProjectPath(cwd))
+        Files.createDirectories(projectDir)
+        val file = "$cwd\\a.kt"
+        Files.writeString(
+            projectDir.resolve("$id.jsonl"),
+            listOf(
+                """{"parentUuid":null,"isSidechain":false,"type":"user","message":{"role":"user","content":"TOP-SECRET-CONTENT edit a.kt"},"uuid":"u-1","timestamp":"2026-01-01T10:00:00.000Z","cwd":"${cwd.asJsonString()}","sessionId":"$id"}""",
+                """{"type":"file-history-snapshot","messageId":"u-1","snapshot":{"messageId":"u-1","trackedFileBackups":{"${file.asJsonString()}":{"backupFileName":"0123456789abcdef@v1","version":1,"backupTime":"2026-01-01T10:00:01.000Z","realParentDir":"${cwd.asJsonString()}"}},"timestamp":"2026-01-01T10:00:01.000Z"},"isSnapshotUpdate":false}""",
+                """{"parentUuid":"u-1","isSidechain":false,"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"done"}]},"uuid":"a-1","timestamp":"2026-01-01T10:00:05.000Z","cwd":"${cwd.asJsonString()}","sessionId":"$id"}""",
+            ).joinToString("\n") + "\n",
+        )
+        if (withBackupFile) {
+            val backups = home.resolve("file-history").resolve(id)
+            Files.createDirectories(backups)
+            Files.writeString(backups.resolve("0123456789abcdef@v1"), "class A")
+        }
+        return SessionScanner.listSessions(home).single { it.id == id }
+    }
+
+    private fun transcriptOf(home: Path, folder: String, id: String): Path =
+        home.resolve("projects").resolve(ClaudePaths.encodeProjectPath(folder)).resolve("$id.jsonl")
+
+    @Test
+    fun `the file history travels with the session and follows a duplicated id`() {
+        val sourceHome = tmp.newFolder("source9", ".claude").toPath()
+        val session = writeSessionWithHistory(sourceHome, "session-9", "C:\\Users\\fabio\\Demo9")
+        assertTrue(session.hasFileHistory)
+        val archive = tmp.root.toPath().resolve("archive9.zip")
+        SessionArchive.export(listOf(session), archive, home = sourceHome)
+        assertTrue(SessionArchive.readManifest(archive).single().hasFileHistory)
+
+        val targetHome = tmp.newFolder("target9", ".claude").toPath()
+        val target = "D:\\Work\\Demo9"
+        SessionArchive.import(archive, home = targetHome, targetProjectPath = target)
+        val duplicated = SessionArchive.import(archive, home = targetHome, targetProjectPath = target).imported.single()
+        assertEquals("duplicated", duplicated.action)
+        assertEquals(1, duplicated.fileHistoryFiles)
+
+        for (id in listOf("session-9", duplicated.writtenId)) {
+            assertEquals("class A", Files.readString(targetHome.resolve("file-history").resolve(id).resolve("0123456789abcdef@v1")))
+        }
+        // The snapshot now tracks the file where it lives on this machine.
+        val snapshot = Files.readAllLines(transcriptOf(targetHome, target, duplicated.writtenId))
+            .map { JsonParser.parseString(it).asJsonObject }
+            .single { it.get("type").asString == "file-history-snapshot" }
+            .getAsJsonObject("snapshot").getAsJsonObject("trackedFileBackups")
+        assertEquals(setOf("D:\\Work\\Demo9\\a.kt"), snapshot.keySet())
+        assertEquals("D:\\Work\\Demo9", snapshot.getAsJsonObject("D:\\Work\\Demo9\\a.kt").get("realParentDir").asString)
+    }
+
+    @Test
+    fun `REPLACE removes the local session wherever it lives`() {
+        val sourceHome = tmp.newFolder("source10", ".claude").toPath()
+        val sourceCwd = "C:\\Users\\fabio\\Demo10"
+        val session = writeSessionWithHistory(sourceHome, "session-10", sourceCwd)
+        val archive = tmp.root.toPath().resolve("archive10.zip")
+        SessionArchive.export(listOf(session), archive, home = sourceHome)
+
+        // First restored into its own folder, then replaced into another one.
+        val targetHome = tmp.newFolder("target10", ".claude").toPath()
+        SessionArchive.import(archive, home = targetHome)
+        assertTrue(Files.exists(transcriptOf(targetHome, sourceCwd, "session-10")))
+
+        val target = "D:\\Work\\Demo10"
+        val outcome = SessionArchive.import(archive, home = targetHome, conflictPolicy = ConflictPolicy.REPLACE, targetProjectPath = target)
+        assertEquals("replaced", outcome.imported.single().action)
+        assertEquals("session-10", outcome.imported.single().writtenId)
+        assertFalse(Files.exists(transcriptOf(targetHome, sourceCwd, "session-10")))
+        assertTrue(Files.exists(transcriptOf(targetHome, target, "session-10")))
+        assertEquals(listOf("session-10"), SessionScanner.listSessions(targetHome).map { it.id })
+        assertTrue(Files.exists(targetHome.resolve("file-history").resolve("session-10").resolve("0123456789abcdef@v1")))
+    }
+
+    @Test
+    fun `SKIP sees a session that is already present in another project folder`() {
+        val sourceHome = tmp.newFolder("source11", ".claude").toPath()
+        val session = writeSourceSession(sourceHome, "session-11", "C:\\Users\\fabio\\Demo11")
+        val archive = tmp.root.toPath().resolve("archive11.zip")
+        SessionArchive.export(listOf(session), archive, home = sourceHome)
+
+        val targetHome = tmp.newFolder("target11", ".claude").toPath()
+        SessionArchive.import(archive, home = targetHome)
+        val second = SessionArchive.import(archive, home = targetHome, conflictPolicy = ConflictPolicy.SKIP, targetProjectPath = "D:\\Elsewhere")
+        assertEquals(listOf("session-11"), second.skipped)
+        assertFalse(Files.exists(transcriptOf(targetHome, "D:\\Elsewhere", "session-11")))
+    }
+
+    @Test
+    fun `a clean import passes every visibility check`() {
+        val sourceHome = tmp.newFolder("source12", ".claude").toPath()
+        val session = writeSessionWithHistory(sourceHome, "session-12", "C:\\Users\\fabio\\Demo12")
+        val archive = tmp.root.toPath().resolve("archive12.zip")
+        SessionArchive.export(listOf(session), archive, home = sourceHome)
+
+        // A folder that really exists on this machine, spelled the way IntelliJ hands it over.
+        val folder = tmp.newFolder("work12").toPath().toAbsolutePath().toString().replace('\\', '/')
+        val targetHome = tmp.newFolder("target12", ".claude").toPath()
+        val outcome = SessionArchive.import(archive, home = targetHome, targetProjectPath = folder)
+
+        assertEquals(emptyList<FailedCheck>(), outcome.failedChecks)
+        assertEquals(ClaudePaths.normalizeProjectPath(folder), outcome.imported.single().cwd)
+    }
+
+    @Test
+    fun `a checkpoint backup missing from the archive is reported by check 13 only`() {
+        val sourceHome = tmp.newFolder("source13", ".claude").toPath()
+        val session = writeSessionWithHistory(sourceHome, "session-13", "C:\\Users\\fabio\\Demo13", withBackupFile = false)
+        val archive = tmp.root.toPath().resolve("archive13.zip")
+        SessionArchive.export(listOf(session), archive, home = sourceHome)
+
+        val folder = tmp.newFolder("work13").toPath().toAbsolutePath().toString()
+        val targetHome = tmp.newFolder("target13", ".claude").toPath()
+        val outcome = SessionArchive.import(archive, home = targetHome, targetProjectPath = folder)
+
+        assertEquals(listOf(13), outcome.failedChecks.map { it.number })
+        assertEquals("session-13", outcome.failedChecks.single().sessionId)
+    }
+
+    @Test
+    fun `the import log records every step but never the conversation`() {
+        val sourceHome = tmp.newFolder("source14", ".claude").toPath()
+        val session = writeSessionWithHistory(sourceHome, "session-14", "C:\\Users\\fabio\\Demo14")
+        val archive = tmp.root.toPath().resolve("archive14.zip")
+        SessionArchive.export(listOf(session), archive, home = sourceHome)
+
+        val logFile = tmp.root.toPath().resolve("logs").resolve("import.log")
+        val targetHome = tmp.newFolder("target14", ".claude").toPath()
+        FileImportLog(logFile).use { log ->
+            SessionArchive.import(archive, home = targetHome, targetProjectPath = "D:\\Work\\Demo14", log = log)
+        }
+        val text = Files.readString(logFile)
+
+        for (key in listOf("environment", "context", "sessions", "diagnosis", "comparison", "summary")) {
+            val title = ClaudeSessionsBundle.message("log.section.$key").uppercase()
+            assertTrue("section $title", text.contains("== $title =="))
+        }
+        for (number in 1..ImportDiagnostics.CHECK_COUNT) {
+            assertTrue("check #$number", Regex("(OK|KO)  #$number  ").containsMatchIn(text))
+        }
+        assertTrue(text.contains("transcript.changed.cwd = 2"))
+        assertTrue(text.contains("fileHistory.filesWritten = 1"))
+        assertFalse(text.contains("TOP-SECRET-CONTENT"))
+    }
+
+    @Test
+    fun `the manifest lists only the sessions that made it into the archive`() {
+        val sourceHome = tmp.newFolder("source15", ".claude").toPath()
+        val present = writeSourceSession(sourceHome, "session-15", "C:\\Users\\fabio\\Demo15")
+        val missing = present.copy(id = "gone")
+
+        val archive = tmp.root.toPath().resolve("archive15.zip")
+        val outcome = SessionArchive.export(listOf(present, missing), archive, home = sourceHome)
+
+        assertEquals(1, outcome.exportedCount)
+        assertEquals(1, outcome.warnings.size)
+        assertEquals(listOf("session-15"), SessionArchive.readManifest(archive).map { it.id })
+    }
+
+    @Test
+    fun `a failure while importing one session does not stop the others`() {
+        val sourceHome = tmp.newFolder("source16", ".claude").toPath()
+        val sessions = listOf(
+            writeSourceSession(sourceHome, "session-16a", "C:\\Users\\fabio\\Demo16"),
+            writeSourceSession(sourceHome, "session-16b", "C:\\Users\\fabio\\Demo16"),
+        )
+        val archive = tmp.root.toPath().resolve("archive16.zip")
+        SessionArchive.export(sessions, archive, home = sourceHome)
+
+        // A folder where the first transcript has to go makes writing it fail.
+        val targetHome = tmp.newFolder("target16", ".claude").toPath()
+        Files.createDirectories(transcriptOf(targetHome, "C:\\Users\\fabio\\Demo16", "session-16a").resolve("blocker"))
+        val existing = SessionScanner.existingTranscripts(targetHome)
+        assertTrue(existing.isEmpty())
+
+        val outcome = SessionArchive.import(archive, home = targetHome)
+        assertEquals(listOf("session-16a"), outcome.failures.map { it.sessionId })
+        assertEquals(listOf("session-16b"), outcome.imported.map { it.writtenId })
     }
 }
