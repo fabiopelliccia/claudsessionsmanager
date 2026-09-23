@@ -150,8 +150,19 @@ object SessionArchive {
             // Gson fills a field missing from the JSON with null even when Kotlin declares it
             // non-null: an archive without a session list is read as an empty one.
             @Suppress("SENSELESS_COMPARISON")
-            return if (manifest.sessions == null) manifest.copy(sessions = emptyList()) else manifest
+            val sessions = if (manifest.sessions == null) emptyList() else manifest.sessions
+            // The name is picked again from the archived transcript rather than trusted from the
+            // manifest: an archive written by an earlier build carries the raw preview it computed,
+            // and the import table has to show exactly what the export table showed.
+            return manifest.copy(sessions = sessions.map { session -> session.copy(summary = titleOf(zip, session)) })
         }
+    }
+
+    private fun titleOf(zip: ZipFile, session: SessionInfo): String? {
+        val entry = zip.getEntry(transcriptEntry(session.id)) ?: return session.summary
+        return runCatching {
+            zip.getInputStream(entry).bufferedReader(StandardCharsets.UTF_8).use { SessionTitle.of(it) }
+        }.getOrNull() ?: session.summary
     }
 
     // ------------------------------------------------------------------------------- import --

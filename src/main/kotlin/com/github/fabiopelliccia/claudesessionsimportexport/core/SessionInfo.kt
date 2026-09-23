@@ -18,7 +18,7 @@ data class SessionInfo(
     /** Number of `user` and `assistant` lines, sidechains included. */
     val messageCount: Int,
     val sizeBytes: Long,
-    /** Short human-readable label: the `summary` line if Claude Code wrote one, else a preview of the first user message. */
+    /** Short human-readable label picked by [SessionTitle]; `null` when the transcript offers none. */
     val summary: String?,
     /** Whether a sibling `<sessionId>/` auxiliary folder exists next to the transcript. */
     val hasAuxData: Boolean,

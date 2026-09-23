@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.2] - 2026-09-23
+
+Development version.
+
+### Changed
+
+- The *Session* column shows a readable name, the same in the export and in the import table. Current
+  Claude Code versions write no `summary` line, and the first user line of a session is usually the
+  markup of a slash command (`<command-name>/model</command-name>`), a caveat or a system reminder, so
+  the name is now picked, in order, from: a custom title, a `summary` line, the first prompt the user
+  actually typed (with that markup and any IDE context removed), the slash command the session started
+  with, and the last recorded prompt. The import table picks it again from the archived transcript, so
+  archives written by 0.0.0 and 0.0.1 read the same too. A session with none of them is shown as
+  *(untitled session)*, translated like every other label.
+
 ## [0.0.1] - 2026-09-23
 
 Development version.

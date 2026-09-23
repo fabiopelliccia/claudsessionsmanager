@@ -1,9 +1,9 @@
-# Work order 0.0.1 — Session Porter for Claude Code
+# Work order 0.0.2 — Session Porter for Claude Code
 
 > **Destinatario:** l'agente di sviluppo che lavora su questo repository.
 > **Ruolo:** sviluppatore del plugin IntelliJ qui contenuto.
 > **Istruzione:** leggi l'intero documento prima di toccare il codice. Descrive il perimetro
-> funzionale e i vincoli della **0.0.1**, la versione di sviluppo attuale: è la specifica di
+> funzionale e i vincoli della **0.0.2**, la versione di sviluppo attuale: è la specifica di
 > riferimento, non un elenco di modifiche incrementali. Ogni intervento futuro parte da qui e, al
 > termine, deve superare la checklist di §8.
 
@@ -33,6 +33,7 @@ descrive Claude Code (vedi §3).
 | `core/ClaudePaths.kt` | risoluzione di `~/.claude`, `encodeProjectPath()`, `normalizeProjectPath()` |
 | `core/ClaudeSessionsBundle.kt` | risoluzione della lingua di ogni testo |
 | `core/SessionScanner.kt` | elenco e lettura dei transcript locali (`listSessions()`, `existingTranscripts()`, `describe()`) |
+| `core/SessionTitle.kt` | nome leggibile di una sessione, identico in export e in import |
 | `core/SessionArchive.kt` | export/import e orchestrazione (`export()`, `readArchiveManifest()`, `import()`) |
 | `core/TranscriptRewriter.kt` | riscrittura strutturale del transcript, liste contrattuali dei campi |
 | `core/PathMapper.kt` | traduzione dei percorsi fra le due macchine |
@@ -52,6 +53,7 @@ descrive Claude Code (vedi §3).
 | `src/test/kotlin/.../core/TimestampShiftTest.kt` | traslazione dei timestamp |
 | `src/test/kotlin/.../core/ClaudePathsTest.kt` | codifica e normalizzazione dei percorsi, `PathMapper` |
 | `src/test/kotlin/.../core/SessionScannerTest.kt` | lettura dei transcript |
+| `src/test/kotlin/.../core/SessionTitleTest.kt` | scelta del nome di una sessione |
 | `src/test/kotlin/.../core/ClaudeSessionsBundleTest.kt` | fallback e completezza delle traduzioni, allineamento del nome |
 
 ### Vincoli architetturali da rispettare
@@ -89,7 +91,7 @@ descrive Claude Code (vedi §3).
 
 ---
 
-## 2. Perimetro funzionale della 0.0.1
+## 2. Perimetro funzionale della 0.0.2
 
 * **`Tools | Claude Code sessions | Export Sessions...`** — elenco di tutte le sessioni locali
   (nome, cartella, branch, data, messaggi, dimensione, id) con filtro e selezione multipla; salva la
@@ -99,6 +101,15 @@ descrive Claude Code (vedi §3).
   default) e offre l'opzione **"Attach the imported sessions to this folder"**.
 * **Notifica di esito** per entrambe le operazioni: *Show archive* dopo un export; *Show import log*
   dopo ogni import e, quando almeno una sessione è stata importata, *Copy resume command*.
+
+Il nome di una sessione, nella colonna *Session* di entrambe le tabelle e nelle notifiche, lo sceglie
+`SessionTitle`, nell'ordine: `customTitle`, riga `summary`, primo prompt digitato (esclusi `isMeta`,
+sidechain, risultati degli strumenti, righe generate come *Caveat:* o *[Request interrupted*, e con
+i blocchi `<system-reminder>`, `<local-command-*>`, `<bash-*>`, `<ide_*>` rimossi), comando slash
+iniziale con i suoi argomenti, riga `last-prompt`. `readArchiveManifest()` lo ricalcola dal transcript
+archiviato invece di fidarsi del manifest, così export e import mostrano lo stesso testo anche con
+archivi di build precedenti. Senza alcun candidato la tabella mostra `table.session.untitled` e le
+notifiche l'id. Il nome resta fuori dal log di import, perché è testo della conversazione.
 
 Il nome utente del plugin è **`Session Porter for Claude Code`** ovunque e non viene tradotto: `pluginName`,
 `<name>`, id del `<notificationGroup>` (che **deve** coincidere con `ClaudeNotifications.GROUP_ID`,
@@ -341,11 +352,11 @@ aggiunto un `META-INF/` alla radice dello ZIP: lo ZIP di un plugin contiene una 
 
 ### 7.2 Versione
 
-`gradle.properties` → `pluginVersion=0.0.1`: il progetto è in sviluppo e non ha ancora versioni
+`gradle.properties` → `pluginVersion=0.0.2`: il progetto è in sviluppo e non ha ancora versioni
 rilasciate sul Marketplace.
 
 `CHANGELOG.md` contiene una sezione **datata** per versione, la più recente in cima:
-`## [0.0.1] - 2026-09-23` e `## [0.0.0] - 2026-09-23`. Le sezioni precedenti non si cancellano mai. La
+`## [0.0.2] - 2026-09-23`, `## [0.0.1] - 2026-09-23` e `## [0.0.0] - 2026-09-23`. Le sezioni precedenti non si cancellano mai. La
 data è obbligatoria:
 alimenta l'intestazione `[versione] - [data]` del riquadro **What's New**. La sezione
 `## [Unreleased]` resta vuota, perché senza data non potrebbe alimentare quell'intestazione.
@@ -390,8 +401,8 @@ Marketplace*.
 
 1. `./gradlew test` verde.
 2. `./gradlew patchPluginXml`: in `build/tmp/patchPluginXml/plugin.xml` il `<name>` è
-   `Session Porter for Claude Code` e `<change-notes>` inizia con `[0.0.1] - 2026-09-23`.
-3. `./gradlew buildPlugin`: lo ZIP si chiama `session-porter-for-claude-code-0.0.1.zip` e il jar che contiene
+   `Session Porter for Claude Code` e `<change-notes>` inizia con `[0.0.2] - 2026-09-23`.
+3. `./gradlew buildPlugin`: lo ZIP si chiama `session-porter-for-claude-code-0.0.2.zip` e il jar che contiene
    include `icons/claudeSessions.svg`, `icons/claudeSessions_dark.svg`, `META-INF/pluginIcon.svg`,
    `META-INF/pluginIcon_dark.svg`, i dieci `messages/ClaudeSessionsBundle*.properties` e
    `META-INF/licenses/`; accanto al jar, in `lib/`, c'è solo `gson-2.11.0.jar`.
@@ -402,6 +413,7 @@ Marketplace*.
 6. `core/` non importa nulla da `com.intellij.*`.
 7. Ogni traduzione ha esattamente le chiavi del file inglese (`ClaudeSessionsBundleTest`).
 8. `README.md` e `CHANGELOG.md` descrivono ogni comportamento osservabile.
-9. Nessun riferimento a versioni del plugin diverse dalla 0.0.1 in codice, documentazione e messaggi
-   utente, salvo lo storico di `CHANGELOG.md` e l'informativa privacy, che vale dalla 0.0.0.
+9. Nessun riferimento a versioni del plugin diverse dalla 0.0.2 in codice, documentazione e messaggi
+   utente, salvo i riferimenti storici: `CHANGELOG.md`, le richieste per versione di `AGENT.md`, la
+   compatibilità con gli archivi delle versioni precedenti e l'informativa privacy, che vale dalla 0.0.0.
 10. `<vendor>` ha `url` ed `email` validi, e i link della descrizione rispondono sul branch `main`.

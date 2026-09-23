@@ -493,4 +493,48 @@ class SessionArchiveTest {
         assertEquals(listOf("session-16a"), outcome.failures.map { it.sessionId })
         assertEquals(listOf("session-16b"), outcome.imported.map { it.writtenId })
     }
+
+    @Test
+    fun `a session has the same name in the export and in the import table`() {
+        val sourceHome = tmp.newFolder("source17", ".claude").toPath()
+        val cwd = "C:\\Users\\fabio\\Demo17"
+        val projectDir = sourceHome.resolve("projects").resolve(ClaudePaths.encodeProjectPath(cwd))
+        Files.createDirectories(projectDir)
+        Files.write(
+            projectDir.resolve("session-17.jsonl"),
+            listOf(
+                """{"type":"user","message":{"role":"user","content":"<command-name>/model</command-name>"},"timestamp":"2026-01-01T00:00:00.000Z","cwd":"${cwd.asJsonString()}","sessionId":"session-17"}""",
+                """{"type":"user","message":{"role":"user","content":"Migrate the build to Gradle 9"},"timestamp":"2026-01-01T00:00:01.000Z","cwd":"${cwd.asJsonString()}","sessionId":"session-17"}""",
+            ),
+        )
+        val exported = SessionScanner.listSessions(sourceHome).single()
+        assertEquals("Migrate the build to Gradle 9", exported.displayName)
+
+        val archive = tmp.root.toPath().resolve("archive17.zip")
+        SessionArchive.export(listOf(exported), archive, home = sourceHome)
+        assertEquals(exported.displayName, SessionArchive.readManifest(archive).single().displayName)
+
+        // An archive written by an earlier build stores the raw preview it computed back then: the
+        // import table still picks the name from the archived transcript.
+        val older = tmp.root.toPath().resolve("archive17-older.zip")
+        java.util.zip.ZipFile(archive.toFile()).use { source ->
+            java.util.zip.ZipOutputStream(Files.newOutputStream(older)).use { target ->
+                for (entry in source.entries()) {
+                    target.putNextEntry(java.util.zip.ZipEntry(entry.name))
+                    val bytes = source.getInputStream(entry).readBytes()
+                    target.write(
+                        if (entry.name == "manifest.json") {
+                            String(bytes, Charsets.UTF_8)
+                                .replace("Migrate the build to Gradle 9", "<command-name>/model</command-name>")
+                                .toByteArray(Charsets.UTF_8)
+                        } else {
+                            bytes
+                        },
+                    )
+                    target.closeEntry()
+                }
+            }
+        }
+        assertEquals(exported.displayName, SessionArchive.readManifest(older).single().displayName)
+    }
 }

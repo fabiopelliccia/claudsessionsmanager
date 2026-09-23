@@ -19,8 +19,6 @@ import kotlin.streams.asSequence
  */
 object SessionScanner {
 
-    private const val PREVIEW_MAX_LENGTH = 140
-
     fun listSessions(home: Path = ClaudePaths.resolveHome()): List<SessionInfo> =
         transcripts(home)
             .map { describe(it, home) }
@@ -42,8 +40,7 @@ object SessionScanner {
         var lastTimestamp: String? = null
         var cwd: String? = null
         var gitBranch: String? = null
-        var summary: String? = null
-        var preview: String? = null
+        val title = SessionTitle()
         var messageCount = 0
 
         Files.newBufferedReader(transcript, StandardCharsets.UTF_8).use { reader ->
@@ -58,18 +55,8 @@ object SessionScanner {
                 }
                 if (cwd == null) cwd = obj.stringOrNull("cwd")
                 obj.stringOrNull("gitBranch")?.takeIf { it.isNotBlank() }?.let { gitBranch = it }
-
-                when (obj.stringOrNull("type")) {
-                    "summary" -> summary = obj.stringOrNull("summary") ?: summary
-                    "user", "assistant" -> {
-                        messageCount++
-                        if (preview == null && obj.stringOrNull("type") == "user" &&
-                            obj.get("isMeta")?.takeIf { it.isJsonPrimitive }?.asBoolean != true
-                        ) {
-                            preview = extractPreview(obj)
-                        }
-                    }
-                }
+                title.accept(obj)
+                if (obj.stringOrNull("type") in setOf("user", "assistant")) messageCount++
             }
         }
 
@@ -81,7 +68,7 @@ object SessionScanner {
             lastTimestamp = lastTimestamp,
             messageCount = messageCount,
             sizeBytes = runCatching { Files.size(transcript) }.getOrDefault(0L),
-            summary = summary ?: preview,
+            summary = title.value(),
             hasAuxData = projectDir.resolve(id).isDirectory(),
             gitBranch = gitBranch,
             hasFileHistory = ClaudePaths.fileHistoryDir(home).resolve(id).isDirectory(),
@@ -100,26 +87,6 @@ object SessionScanner {
                     }
                 }
                 .toList()
-        }
-    }
-
-    private fun extractPreview(userLine: JsonObject): String? {
-        val message = userLine.get("message")?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
-        val content = message.get("content") ?: return null
-        val text = when {
-            content.isJsonPrimitive -> content.asString
-            content.isJsonArray -> content.asJsonArray.asSequence()
-                .filter { it.isJsonObject && it.asJsonObject.stringOrNull("type") == "text" }
-                .mapNotNull { it.asJsonObject.stringOrNull("text") }
-                .firstOrNull()
-            else -> null
-        } ?: return null
-        val singleLine = text.replace(Regex("\\s+"), " ").trim()
-        if (singleLine.isEmpty()) return null
-        return if (singleLine.length > PREVIEW_MAX_LENGTH) {
-            singleLine.take(PREVIEW_MAX_LENGTH) + "…"
-        } else {
-            singleLine
         }
     }
 

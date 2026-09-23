@@ -81,7 +81,10 @@ internal class SessionTableModel(
         val session = row.session
         return when (columns[columnIndex]) {
             SessionColumn.SELECTION -> row.selected
-            SessionColumn.SESSION -> session.displayName
+            // A session with no title of its own (typically one with no message at all) gets a
+            // label instead of its id, which the ID column already shows.
+            SessionColumn.SESSION -> session.summary?.takeIf { it.isNotBlank() }
+                ?: ClaudeSessionsBundle.message("table.session.untitled")
             SessionColumn.FOLDER -> session.projectPath ?: session.projectFolderName
             SessionColumn.BRANCH -> session.gitBranch.orEmpty()
             SessionColumn.UPDATED -> localTime(session.lastTimestamp ?: session.firstTimestamp)

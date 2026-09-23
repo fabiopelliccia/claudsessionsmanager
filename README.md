@@ -8,7 +8,7 @@ Permette di scegliere puntualmente quali conversazioni esportare e quali riprist
 alla cartella di progetto della macchina di destinazione e di ritrovarle subito con
 `claude --resume`, datate come se fossero appena avvenute.
 
-> Versione di sviluppo **0.0.1**.
+> Versione di sviluppo **0.0.2**.
 
 ## Funzionalità
 
@@ -25,6 +25,25 @@ alla cartella di progetto della macchina di destinazione e di ritrovarle subito 
 
   Il dialogo espone inoltre l'opzione **"Attach the imported sessions to this folder"**, spiegata
   in [Cartella di lavoro e visibilità](#cartella-di-lavoro-e-visibilità).
+
+### Il nome della sessione
+
+La colonna *Sessione* mostra lo stesso nome in export e in import. Le versioni attuali di Claude Code
+non scrivono una riga `summary`, e la prima riga utente di una sessione di solito non è ciò che si è
+chiesto ma il markup di un comando slash (`<command-name>/model</command-name>`), un avviso o un
+promemoria di sistema. Il nome viene quindi scelto, nell'ordine, fra:
+
+1. il titolo personalizzato, se la sessione è stata rinominata;
+2. la riga `summary`, scritta dalle versioni precedenti di Claude Code;
+3. il primo prompt davvero digitato, ripulito da markup dei comandi, output, promemoria di sistema e
+   contesto dell'IDE (`<ide_opened_file>`…);
+4. il comando slash con cui la sessione è iniziata, con i suoi argomenti, se non c'è alcun prompt;
+5. l'ultimo prompt registrato da Claude Code (riga `last-prompt`).
+
+Il testo viene ridotto a una riga e troncato a 140 caratteri; se la colonna è più stretta, passando
+con il mouse sulla cella la si vede per intero. Una sessione senza nessuno di questi elementi compare come *(sessione senza titolo)*.
+In import il nome viene ricalcolato dal transcript contenuto nell'archivio, quindi coincide con quello
+dell'export anche per gli archivi prodotti dalla 0.0.0 e dalla 0.0.1.
 * **Notifica di esito** per entrambe le operazioni. Dopo un import offre **"Show import log"** e,
   quando almeno una sessione è stata importata, **"Copy resume command"**.
 
@@ -312,7 +331,7 @@ La coppia chiave/certificato si genera come descritto nella
 il token si crea dal profilo sul [Marketplace](https://plugins.jetbrains.com/author/me/tokens).
 
 Il canale di pubblicazione è dedotto da `pluginVersion`: una versione senza suffisso va sul canale
-`default`, mentre una pre-release come `0.0.1-beta.1` va sul canale omonimo (`beta`), visibile solo a
+`default`, mentre una pre-release come `0.0.2-beta.1` va sul canale omonimo (`beta`), visibile solo a
 chi lo ha aggiunto fra i repository dei plugin.
 
 ### Compatibilità

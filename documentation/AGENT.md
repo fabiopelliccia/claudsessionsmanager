@@ -2,7 +2,7 @@
 
 Documento di origine del progetto: raccoglie, nella forma in cui sono stati espressi, i requisiti che
 hanno portato alla **0.0.0**, la prima versione di sviluppo, e le richieste successive fino alla
-**0.0.1**, quella attuale. Non è una specifica tecnica: la
+**0.0.2**, quella attuale. Non è una specifica tecnica: la
 specifica operativa, con vincoli, architettura e checklist, è `documentation/TASK.md`.
 
 Il progetto è il gemello di *Github Copilot sessions*, da cui questi due documenti sono stati
@@ -51,6 +51,14 @@ portabile e a ripristinarle dove servono.
   se non serve, non deve chiederlo. Verificato: non serve in nessuno dei due casi.
 * **Versione `0.0.1`**, con le novità aggiunte al changelog senza togliere quelle della `0.0.0`.
 
+### Richieste della 0.0.2
+
+* **Nome della sessione comprensibile.** Nel pannello di export la colonna *Sessione* mostrava markup
+  tecnico (comandi slash, avvisi, promemoria di sistema) al posto di un testo leggibile: deve mostrare
+  un nome comprensibile, lo stesso in export e in import.
+* **Versione `0.0.2`**, con le novità aggiunte al changelog senza togliere quelle delle versioni
+  precedenti.
+
 ## Dove è finito ciascun requisito
 
 | Requisito | Documentazione |
@@ -63,3 +71,4 @@ portabile e a ripristinarle dove servono.
 | Localizzazione | `README.md` → *Lingua dell'interfaccia*, §6 di `TASK.md` |
 | Icona, Overview, What's New, versione | `plugin.xml`, `build.gradle.kts`, `gradle.properties`, §7 di `TASK.md` |
 | Icona nel menu, logo, riavvii (0.0.1) | `README.md` → *Installazione e riavvii*, §3 e §7.1 di `TASK.md` |
+| Nome della sessione (0.0.2) | `README.md` → *Il nome della sessione*, §2 di `TASK.md` |
