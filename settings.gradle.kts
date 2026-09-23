@@ -5,4 +5,4 @@ pluginManagement {
     }
 }
 
-rootProject.name = "claude-code-sessions"
+rootProject.name = "session-porter-for-claude-code"

@@ -1,4 +1,4 @@
-# Brief originale — Claude Code sessions
+# Brief originale — Session Porter for Claude Code
 
 Documento di origine del progetto: raccoglie, nella forma in cui sono stati espressi, i requisiti che
 hanno portato alla **0.0.0**, la versione di sviluppo attuale. Non è una specifica tecnica: la

@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the Claude Code sessions plugin are documented in this file.
+All notable changes to the Session Porter for Claude Code plugin are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -51,3 +51,11 @@ Development version.
 - Plugin logo and menu icon with dark variants: a ring with the green import arrow and the blue
   export arrow facing each other.
 - The `runIde` sandbox works on `build/claude-home-test` instead of the real `~/.claude`.
+- Compatible with IntelliJ-based IDEs from build 261 on, with no upper bound; verified with the
+  IntelliJ Plugin Verifier on 2026.1.5, 2026.2.3 and the 2026.3 EAP (263.5153.40), where any finding -
+  deprecated, experimental or internal API included - fails the build.
+- Menu texts come from the plugin resource bundle, as JetBrains recommends, and the plugin can be
+  installed, enabled and disabled without restarting the IDE.
+- Licensing and privacy: the plugin jar carries its MIT license, the notice for the bundled Gson
+  library and the Apache License 2.0 it is distributed under; the repository adds a privacy policy
+  (the plugin collects and transmits no data) and a trademark notice.

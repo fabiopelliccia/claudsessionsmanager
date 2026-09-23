@@ -1,4 +1,4 @@
-# Claude Code sessions
+# Session Porter for Claude Code
 
 Plugin IntelliJ (Kotlin) per **esportare e importare le sessioni di chat di
 [Claude Code](https://claude.com/product/claude-code)** in un archivio ZIP portabile, pensato per
@@ -222,7 +222,7 @@ francese, tedesco, spagnolo, portoghese, giapponese, cinese e coreano. Per aggiu
 creare `src/main/resources/messages/ClaudeSessionsBundle_<lingua>.properties` con le stesse chiavi
 del file inglese; un test verifica che ogni traduzione abbia esattamente quelle chiavi e che gli
 apostrofi siano raddoppiati solo dove `MessageFormat` lo richiede. Il nome del plugin,
-**Claude Code sessions**, non viene tradotto.
+**Session Porter for Claude Code**, non viene tradotto.
 
 ## Note operative
 
@@ -243,7 +243,7 @@ apostrofi siano raddoppiati solo dove `MessageFormat` lo richiede. Il nome del p
 ```bash
 ./gradlew test            # round-trip export/import, riscrittura, timestamp, diagnosi, traduzioni
 ./gradlew patchPluginXml  # plugin.xml finale in build/tmp/patchPluginXml (Overview e What's New)
-./gradlew buildPlugin     # build/distributions/claude-code-sessions-<versione>.zip
+./gradlew buildPlugin     # build/distributions/session-porter-for-claude-code-<versione>.zip
 ./gradlew runIde          # IDE di prova con il plugin installato
 ./gradlew verifyPlugin    # IntelliJ Plugin Verifier sulle IDE consigliate
 ```
@@ -291,12 +291,47 @@ Il canale di pubblicazione è dedotto da `pluginVersion`: una versione senza suf
 `default`, mentre una pre-release come `0.0.0-beta.1` va sul canale omonimo (`beta`), visibile solo a
 chi lo ha aggiunto fra i repository dei plugin.
 
-Il plugin non dipende da altri plugin e non ricorre ad API interne della piattaforma: la propria
-versione, per il log di import, la legge dal `plugin.xml` incluso nel jar invece di interrogare
-`PluginManager`. `failureLevel` in `build.gradle.kts` fa fallire la build su problemi di
-compatibilità, struttura del plugin, dipendenze mancanti e API pianificate per la rimozione, non
-estendibili o riservate all'override; eventuali usi di API interne o deprecate verrebbero riportati
-come avvisi.
+### Compatibilità
+
+`since-build` vale `261` e `until-build` non è impostato, come raccomanda JetBrains: il plugin si
+installa su ogni IDE basato su IntelliJ dalla 2026.1 in poi. `verifyPlugin` lo verifica con IntelliJ
+Plugin Verifier sulle build indicate in `build.gradle.kts`:
+
+| IDE | Build | Esito |
+|---|---|---|
+| IntelliJ IDEA 2026.1.5 | IU-261.27258.48 | Compatible |
+| IntelliJ IDEA 2026.2.3 | IU-262.10968.63 | Compatible |
+| IntelliJ IDEA 2026.3 EAP | IU-263.5153.40 | Compatible |
+
+`failureLevel` è impostato a `ALL`: **qualunque** segnalazione del Verifier fa fallire la build —
+problemi di compatibilità, struttura del plugin, dipendenze mancanti, API interne, sperimentali,
+deprecate o pianificate per la rimozione, e un plugin che non si possa caricare senza riavvio. Il
+plugin non dipende da altri plugin; la propria versione, per il log di import, la legge dal
+`plugin.xml` incluso nel jar invece di interrogare `PluginManager`.
+
+### Requisiti del Marketplace
+
+Come il plugin soddisfa le
+[JetBrains Marketplace Approval Guidelines](https://plugins.jetbrains.com/docs/marketplace/jetbrains-marketplace-approval-guidelines.html):
+
+| Requisito | Dove |
+|---|---|
+| nome in caratteri latini, al massimo 30, senza "Plugin", "IntelliJ", "JetBrains" | `<name>` in `plugin.xml`, `pluginName` in `gradle.properties` |
+| descrizione in inglese, corretta e senza link rotti | `<description>` in `plugin.xml` |
+| vendor con sito ed email validi | `<vendor>` in `plugin.xml` |
+| logo SVG 40×40, diverso dal template e dai loghi JetBrains | `META-INF/pluginIcon.svg`, `pluginIcon_dark.svg` |
+| licenza (EULA) e link al sorgente per un plugin open source | [`LICENSE`](LICENSE) (MIT), repository GitHub, link nella descrizione |
+| informativa privacy se si raccolgono dati personali | [`PRIVACY.md`](PRIVACY.md): nessun dato raccolto né trasmesso |
+| change notes pertinenti | `CHANGELOG.md` → `<change-notes>` |
+| versione semantica | `pluginVersion` in `gradle.properties` |
+| compatibilità verificata con il Plugin Verifier, nessuna API interna | `verifyPlugin`, vedi *Compatibilità* |
+| nessuna violazione di marchi di terzi | nota sui marchi nella descrizione e in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) |
+
+Al primo caricamento, nel modulo del Marketplace vanno indicati: licenza *MIT* con il link a
+`LICENSE`, il link al **codice sorgente** e all'**issue tracker** del repository e — una volta per
+account — la dichiarazione *trader/non-trader* richiesta dalla normativa europea sui consumatori.
+
+### Rilascio
 
 Checklist prima di un rilascio:
 
@@ -304,15 +339,36 @@ Checklist prima di un rilascio:
 2. aggiungere in `CHANGELOG.md` una sezione `## [<versione>] - <data>` **con la data**, lasciando
    vuota `## [Unreleased]`;
 3. `./gradlew clean test verifyPlugin` senza errori;
-4. `./gradlew signPlugin publishPlugin` con le quattro variabili d'ambiente impostate.
+4. fare il merge su `main` e il push: i link della descrizione (licenza, privacy, sorgente) puntano
+   al branch `main` del repository e devono rispondere prima della pubblicazione;
+5. `./gradlew signPlugin publishPlugin` con le quattro variabili d'ambiente impostate.
 
 Il primo caricamento sul Marketplace passa per una **revisione manuale** di JetBrains e richiede un
 `pluginId` univoco (`com.github.fabiopelliccia.claudesessionsimportexport`), una `<description>` e un
 `<vendor>` compilati in `plugin.xml`, e una licenza: tutto è già presente in questo repository.
 
-## Licenza
+### Nota per Windows
 
-[MIT](LICENSE) © Fabio Pelliccia
+Se la cartella temporanea è scritta in forma breve 8.3 (ad esempio
+`C:\Users\ABCDEF~1\AppData\Local\Temp`), Java non riesce ad aprire i propri socket locali e Gradle, i
+test e il Plugin Verifier si fermano con `Unable to establish loopback connection`. Basta indicare a
+Java una cartella con percorso lungo prima di lanciare Gradle:
+
+```bash
+set JAVA_TOOL_OPTIONS=-Djdk.net.unixdomain.tmpdir=C:\Users\<utente>\AppData\Local\Temp
+```
+
+## Licenza, privacy e marchi
+
+* Il plugin è distribuito con licenza [MIT](LICENSE) © Fabio Pelliccia: può essere usato, copiato,
+  modificato e ridistribuito liberamente, anche per uso commerciale, mantenendo l'avviso di copyright.
+* Lo ZIP del plugin include [Gson](https://github.com/google/gson), con licenza
+  [Apache 2.0](licenses/Apache-2.0.txt): vedi [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+  Licenza, avviso e testo Apache sono anche dentro il jar, in `META-INF/licenses/`.
+* Il plugin non raccoglie né trasmette alcun dato: vedi [`PRIVACY.md`](PRIVACY.md).
+* Claude e Claude Code sono marchi di Anthropic, PBC; IntelliJ IDEA e JetBrains sono marchi di
+  JetBrains s.r.o. Questo è un progetto indipendente, non affiliato né approvato da Anthropic o da
+  JetBrains.
 
 ## Special thanks
 

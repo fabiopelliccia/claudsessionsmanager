@@ -30,6 +30,6 @@ class ClaudeSessionsActionGroup : DefaultActionGroup(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
     override fun update(e: AnActionEvent) {
-        e.presentation.text = ClaudeSessionsBundle.message("action.group.text")
+        e.presentation.text = ClaudeSessionsBundle.message("group.ClaudeSessionsImportExport.Menu.text")
     }
 }

@@ -1,4 +1,4 @@
-# Work order 0.0.0 — Claude Code sessions
+# Work order 0.0.0 — Session Porter for Claude Code
 
 > **Destinatario:** l'agente di sviluppo che lavora su questo repository.
 > **Ruolo:** sviluppatore del plugin IntelliJ qui contenuto.
@@ -22,8 +22,10 @@ descrive Claude Code (vedi §3).
 | `settings.gradle.kts` | `rootProject.name`, cioè il nome dello ZIP prodotto |
 | `CHANGELOG.md` | formato *Keep a Changelog*, alimenta `changeNotes` |
 | `README.md` | documentazione utente e di rilascio (italiano) |
-| `LICENSE` | MIT |
-| `src/main/resources/META-INF/plugin.xml` | `<name>`, `<description>` → riquadro **Overview**, gruppo azioni del menu `Tools` |
+| `LICENSE` | MIT, cioè la licenza d'uso (EULA) del plugin |
+| `THIRD_PARTY_NOTICES.md`, `licenses/Apache-2.0.txt` | componenti di terze parti inclusi nello ZIP (Gson) e loro licenza; nota sui marchi |
+| `PRIVACY.md` | informativa privacy: nessun dato raccolto né trasmesso |
+| `src/main/resources/META-INF/plugin.xml` | `<name>`, `<vendor>`, `<description>` → riquadro **Overview**, `<resource-bundle>`, gruppo azioni del menu `Tools` |
 | `src/main/resources/META-INF/pluginIcon*.svg` | icona su *Settings \| Plugins* e sul Marketplace |
 | `src/main/resources/icons/` | icone 16×16 del menu (variante chiara e scura) |
 | `src/main/resources/messages/ClaudeSessionsBundle*.properties` | unici testi localizzati |
@@ -65,8 +67,11 @@ descrive Claude Code (vedi §3).
    testo sul transcript.
 4. **Il log diagnostico non può far fallire l'import** e non contiene mai testo di conversazione —
    nemmeno il nome della sessione, che senza una riga `summary` è un'anteprima del primo messaggio.
-5. **Nessuna API interna.** Il plugin non dipende da altri plugin e la propria versione la legge dal
-   `plugin.xml` incluso nel jar, non da `PluginManager`.
+5. **Nessuna API interna, sperimentale o deprecata.** Il plugin non dipende da altri plugin e la
+   propria versione la legge dal `plugin.xml` incluso nel jar, non da `PluginManager`. Prima di usare
+   un'API della piattaforma va controllato che non sia deprecata in nessuna delle build di §7.4: ad
+   esempio `SimpleListCellRenderer.create()` è pianificata per la rimozione dalla 2026.2 e al suo posto
+   si usa `ColoredListCellRenderer`.
 6. Commenti in inglese, solo dove il codice non è autoesplicativo, nello stile già presente nel
    repository: spiegano il *perché*, non il *cosa*.
 7. Ogni comportamento osservabile va documentato in `CHANGELOG.md` **e** in `README.md`.
@@ -78,7 +83,7 @@ descrive Claude Code (vedi §3).
 ./gradlew patchPluginXml  # genera il plugin.xml finale (verifica di Overview e What's New)
 ./gradlew buildPlugin     # ZIP in build/distributions
 ./gradlew runIde          # IDE di prova, su build/claude-home-test invece di ~/.claude
-./gradlew verifyPlugin    # IntelliJ Plugin Verifier sulle IDE consigliate
+./gradlew verifyPlugin    # IntelliJ Plugin Verifier sulle build di §7.4, ogni segnalazione è un errore
 ./gradlew signPlugin publishPlugin   # firma e pubblicazione (vedi README)
 ```
 
@@ -95,11 +100,12 @@ descrive Claude Code (vedi §3).
 * **Notifica di esito** per entrambe le operazioni: *Show archive* dopo un export; *Show import log*
   dopo ogni import e, quando almeno una sessione è stata importata, *Copy resume command*.
 
-Il nome utente del plugin è **`Claude Code sessions`** ovunque e non viene tradotto: `pluginName`,
-`<name>`, testo di fallback del gruppo `ClaudeSessionsImportExport.Menu`, id del
-`<notificationGroup>` (che **deve** coincidere con `ClaudeNotifications.GROUP_ID`, altrimenti le
-notifiche smettono di comparire), titolo dei messaggi e `producer` scritto nel manifest dell'archivio.
-Tutti derivano da `PluginNames.DISPLAY_NAME`, e `ClaudeSessionsBundleTest` ne verifica l'allineamento.
+Il nome utente del plugin è **`Session Porter for Claude Code`** ovunque e non viene tradotto: `pluginName`,
+`<name>`, id del `<notificationGroup>` (che **deve** coincidere con `ClaudeNotifications.GROUP_ID`,
+altrimenti le notifiche smettono di comparire), titolo dei messaggi e `producer` scritto nel manifest
+dell'archivio. Tutti derivano da `PluginNames.DISPLAY_NAME`, e `ClaudeSessionsBundleTest` ne verifica
+l'allineamento. Il titolo del sottomenu (`group.ClaudeSessionsImportExport.Menu.text`) invece è un
+testo dell'interfaccia e segue la lingua, come in *Sessioni Claude Code*.
 
 **Non** vanno mai cambiati il `<id>` del plugin né i nomi dei package: cambiare l'id farebbe apparire
 il plugin come una nuova installazione, lasciando orfana quella esistente.
@@ -283,10 +289,11 @@ riga di conversazione).
 Ogni testo del plugin — sottomenu e azioni del menu `Tools`, dialoghi di export/import, colonne e
 stato della tabella delle sessioni, politiche di conflitto, notifiche e loro azioni, avvisi di
 export/import, messaggi di errore, testi di avanzamento, titoli delle sezioni del log e descrizioni
-dei controlli di §5.1 — passa da `ClaudeSessionsBundle`. I testi di `plugin.xml` sono solo il fallback
-inglese mostrato prima che le classi siano caricate: il gruppo (`ClaudeSessionsActionGroup`) e le
-azioni impostano il testo tradotto nel proprio `update()`, e il gruppo di notifiche usa
-`bundle`/`key`.
+dei controlli di §5.1 — passa da `ClaudeSessionsBundle`. Gruppo e azioni non hanno testi in chiaro in
+`plugin.xml`: li prende dal `<resource-bundle>` con le chiavi convenzionali (`group.<id>.text`,
+`action.<id>.text`, `action.<id>.description`), e il gruppo (`ClaudeSessionsActionGroup`) e le azioni
+li reimpostano nel proprio `update()` con la risoluzione di `ClaudeSessionsBundle`, che segue anche la
+lingua del sistema operativo. Il gruppo di notifiche usa `bundle`/`key`.
 
 La risoluzione è uguale per ogni chiave, in due passaggi: prima la lingua di visualizzazione dell'IDE
 quando è una localizzazione esplicita (non l'inglese), poi le impostazioni internazionali del sistema
@@ -325,7 +332,34 @@ rilasciate.
 alimenta l'intestazione `[versione] - [data]` del riquadro **What's New**. La sezione
 `## [Unreleased]` resta vuota, perché senza data non potrebbe alimentare quell'intestazione.
 
-### 7.3 Firma e pubblicazione
+### 7.3 Licenze, privacy e marchi
+
+* il plugin è MIT (`LICENSE`), che è anche la licenza d'uso da indicare al Marketplace insieme al link
+  al sorgente;
+* lo ZIP include solo il proprio jar e `gson` (Apache 2.0): la dipendenza transitiva
+  `error_prone_annotations` è esclusa perché serve solo a compilare Gson. Il jar porta in
+  `META-INF/licenses/` `LICENSE`, `THIRD_PARTY_NOTICES.md` e `Apache-2.0.txt`: ogni nuova libreria
+  inclusa va aggiunta a `THIRD_PARTY_NOTICES.md` con la sua licenza;
+* il plugin non raccoglie né trasmette dati (`PRIVACY.md`): un'eventuale raccolta richiederebbe il
+  consenso esplicito dell'utente e l'aggiornamento dell'informativa;
+* la descrizione dichiara che Claude e Claude Code sono marchi di Anthropic e che il progetto non è
+  affiliato; i link a licenza, privacy, sorgente e issue tracker puntano al branch `main` del
+  repository.
+
+### 7.4 Compatibilità
+
+`since-build` = `261`, `until-build` aperto. `verifyPlugin` verifica le build:
+
+| IDE | Build |
+|---|---|
+| IntelliJ IDEA 2026.1.5 | IU-261.27258.48 |
+| IntelliJ IDEA 2026.2.3 | IU-262.10968.63 |
+| IntelliJ IDEA 2026.3 EAP | IU-263.5153.40 |
+
+con `failureLevel = ALL`: qualunque segnalazione del Plugin Verifier, deprecazioni e idoneità al
+caricamento dinamico comprese, fa fallire la build.
+
+### 7.5 Firma e pubblicazione
 
 Firma e pubblicazione leggono **solo** variabili d'ambiente (`CERTIFICATE_CHAIN`, `PRIVATE_KEY`,
 `PRIVATE_KEY_PASSWORD`, `PUBLISH_TOKEN`): nessuna credenziale entra nel repository. Il canale è
@@ -338,12 +372,13 @@ Marketplace*.
 
 1. `./gradlew test` verde.
 2. `./gradlew patchPluginXml`: in `build/tmp/patchPluginXml/plugin.xml` il `<name>` è
-   `Claude Code sessions` e `<change-notes>` inizia con `[0.0.0] - 2026-09-23`.
-3. `./gradlew buildPlugin`: lo ZIP si chiama `claude-code-sessions-0.0.0.zip` e il jar che contiene
+   `Session Porter for Claude Code` e `<change-notes>` inizia con `[0.0.0] - 2026-09-23`.
+3. `./gradlew buildPlugin`: lo ZIP si chiama `session-porter-for-claude-code-0.0.0.zip` e il jar che contiene
    include `icons/claudeSessions.svg`, `icons/claudeSessions_dark.svg`, `META-INF/pluginIcon.svg`,
-   `META-INF/pluginIcon_dark.svg` e i dieci `messages/ClaudeSessionsBundle*.properties`.
-4. `./gradlew verifyPlugin` verde: **Compatible** su tutte le IDE consigliate, senza usi di API
-   interne.
+   `META-INF/pluginIcon_dark.svg`, i dieci `messages/ClaudeSessionsBundle*.properties` e
+   `META-INF/licenses/`; accanto al jar, in `lib/`, c'è solo `gson-2.11.0.jar`.
+4. `./gradlew verifyPlugin` verde: **Compatible** su tutte le build di §7.4, senza alcuna
+   segnalazione.
 5. L'id del `<notificationGroup>` in `plugin.xml` coincide con `ClaudeNotifications.GROUP_ID`
    (`ClaudeSessionsBundleTest`).
 6. `core/` non importa nulla da `com.intellij.*`.
@@ -351,3 +386,4 @@ Marketplace*.
 8. `README.md` e `CHANGELOG.md` descrivono ogni comportamento osservabile.
 9. Nessun riferimento a versioni del plugin diverse dalla 0.0.0 in codice, documentazione e messaggi
    utente.
+10. `<vendor>` ha `url` ed `email` validi, e i link della descrizione rispondono sul branch `main`.

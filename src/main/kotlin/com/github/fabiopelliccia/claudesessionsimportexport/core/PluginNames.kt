@@ -8,5 +8,5 @@ package com.github.fabiopelliccia.claudesessionsimportexport.core
  * notification of the plugin.
  */
 object PluginNames {
-    const val DISPLAY_NAME = "Claude Code sessions"
+    const val DISPLAY_NAME = "Session Porter for Claude Code"
 }

@@ -1,24 +1,41 @@
 <idea-plugin>
     <id>com.github.fabiopelliccia.claudesessionsimportexport</id>
-    <name>Claude Code sessions</name>
-    <vendor url="https://github.com/Fabio-Pelliccia">Fabio Pelliccia</vendor>
+    <name>Session Porter for Claude Code</name>
+    <vendor url="https://github.com/fabiopelliccia/claudsessionsmanager" email="fabio.pelliccia@gmail.com">Fabio Pelliccia</vendor>
 
     <description><![CDATA[
-    Export and import Claude Code chat sessions - built for moving them to another machine and another user.<br/>
+    <p>
+    Export and import Claude Code chat sessions - built for moving them to another machine and another user.
+    </p>
+    <p>
     The plugin reads the local Claude Code session transcripts (<code>~/.claude/projects/&lt;project&gt;/&lt;sessionId&gt;.jsonl</code>),
-    the per-session auxiliary folder next to each transcript and the file history behind checkpoints and
-    <code>/rewind</code> (<code>~/.claude/file-history/&lt;sessionId&gt;</code>), lets you pick the conversations you want to
-    move and writes them into a portable ZIP archive. On import, the sessions are attached to the local project
-    folder you choose, conflicts are resolved the way you pick (skip, replace or import as a new copy) and the
-    timestamps are shifted so the sessions show up as ones that just happened: run <code>claude --resume</code>
-    from that folder and they are listed right away. Every import writes a diagnostic log.
+    the auxiliary folder next to each transcript and the file history behind checkpoints and <code>/rewind</code>
+    (<code>~/.claude/file-history/&lt;sessionId&gt;</code>), lets you pick the conversations you want to move and writes
+    them into a portable ZIP archive. On import, the sessions are attached to the local project folder you choose,
+    conflicts are resolved the way you pick (skip, replace or import as a new copy) and the timestamps are shifted
+    so the sessions show up as ones that just happened: run <code>claude --resume</code> from that folder and they
+    are listed right away, with no restart. Every import writes a diagnostic log.
+    </p>
     <ul>
       <li><b>Tools | Claude Code sessions | Export Sessions...</b> pick one or more sessions and save the archive.</li>
       <li><b>Tools | Claude Code sessions | Import Sessions...</b> pick an archive, the target project folder and
       which sessions to restore.</li>
     </ul>
+    <p>
     The interface follows the language of the IDE or of the operating system: English, Italian, French, German,
     Spanish, Portuguese, Japanese, Chinese and Korean.
+    </p>
+    <p>
+    The plugin works entirely offline: it collects no data and never connects to any server.
+    Open source under the <a href="https://github.com/fabiopelliccia/claudsessionsmanager/blob/main/LICENSE">MIT License</a> -
+    <a href="https://github.com/fabiopelliccia/claudsessionsmanager">source code</a>,
+    <a href="https://github.com/fabiopelliccia/claudsessionsmanager/blob/main/PRIVACY.md">privacy policy</a>,
+    <a href="https://github.com/fabiopelliccia/claudsessionsmanager/issues">issue tracker</a>.
+    </p>
+    <p>
+    <i>Claude and Claude Code are trademarks of Anthropic, PBC. This is an independent project, not affiliated with,
+    endorsed by or sponsored by Anthropic.</i>
+    </p>
     <h3>Special thanks</h3>
     <p>
       A heartfelt thank you to my colleague and dear friend <b>Antonio Petricca</b>, who has followed this plugin since its
@@ -29,38 +46,36 @@
 
     <depends>com.intellij.modules.platform</depends>
 
+    <!--
+      Action and group texts come from this bundle (keys `action.<id>.text`, `action.<id>.description`,
+      `group.<id>.text`), resolved by the IDE for its own language. Each action then sets the text again
+      in its `update()` through ClaudeSessionsBundle, so the menu also follows the language of the
+      operating system when no language pack is installed, like every other text of the plugin.
+    -->
+    <resource-bundle>messages.ClaudeSessionsBundle</resource-bundle>
+
     <extensions defaultExtensionNs="com.intellij">
         <!-- The id must match ClaudeNotifications.GROUP_ID, or notifications stop showing up. -->
-        <notificationGroup id="Claude Code sessions"
+        <notificationGroup id="Session Porter for Claude Code"
                            displayType="BALLOON"
                            bundle="messages.ClaudeSessionsBundle"
                            key="notification.group.name"/>
     </extensions>
 
-    <!--
-      The `text` and `description` below are the English fallback shown before the action class is
-      loaded; every action replaces them with the translated text in its own `update()`, so the menu
-      follows the same language as the dialogs - see ClaudeSessionsBundle.
-    -->
     <actions>
         <group id="ClaudeSessionsImportExport.Menu"
                class="com.github.fabiopelliccia.claudesessionsimportexport.ui.ClaudeSessionsActionGroup"
-               text="Claude Code sessions"
                icon="/icons/claudeSessions.svg"
                popup="true">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
 
             <action id="ClaudeSessionsImportExport.Export"
                     class="com.github.fabiopelliccia.claudesessionsimportexport.ui.ExportClaudeSessionsAction"
-                    text="Export Sessions..."
-                    icon="/icons/claudeSessions.svg"
-                    description="Export the selected Claude Code chat sessions into a ZIP archive"/>
+                    icon="/icons/claudeSessions.svg"/>
 
             <action id="ClaudeSessionsImportExport.Import"
                     class="com.github.fabiopelliccia.claudesessionsimportexport.ui.ImportClaudeSessionsAction"
-                    text="Import Sessions..."
-                    icon="/icons/claudeSessions.svg"
-                    description="Restore Claude Code chat sessions from a ZIP archive"/>
+                    icon="/icons/claudeSessions.svg"/>
         </group>
     </actions>
 </idea-plugin>

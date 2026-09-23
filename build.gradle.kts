@@ -1,4 +1,5 @@
 import org.jetbrains.changelog.Changelog
+import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask
 
@@ -25,7 +26,11 @@ dependencies {
         testFramework(TestFrameworkType.Platform)
     }
 
-    implementation("com.google.code.gson:gson:2.11.0")
+    // Gson's only dependency, Error Prone annotations, is needed to compile Gson itself and never at
+    // runtime: leaving it out keeps the distribution down to what the plugin actually loads.
+    implementation("com.google.code.gson:gson:2.11.0") {
+        exclude(group = "com.google.errorprone", module = "error_prone_annotations")
+    }
 
     testImplementation("junit:junit:4.13.2")
 }
@@ -69,19 +74,18 @@ intellijPlatform {
     }
 
     pluginVerification {
+        // `since-build` is 261 and `until-build` stays open, as JetBrains recommends; these are the
+        // builds the plugin is verified on, from the 2026.1.5 update to the 2026.3 EAP.
         ides {
-            recommended()
+            create(IntelliJPlatformType.IntellijIdea, "2026.1.5")
+            create(IntelliJPlatformType.IntellijIdea, "2026.2.3")
+            create(IntelliJPlatformType.IntellijIdea, "263.5153.40")
         }
 
-        failureLevel = listOf(
-            VerifyPluginTask.FailureLevel.COMPATIBILITY_PROBLEMS,
-            VerifyPluginTask.FailureLevel.INVALID_PLUGIN,
-            VerifyPluginTask.FailureLevel.PLUGIN_STRUCTURE_WARNINGS,
-            VerifyPluginTask.FailureLevel.MISSING_DEPENDENCIES,
-            VerifyPluginTask.FailureLevel.SCHEDULED_FOR_REMOVAL_API_USAGES,
-            VerifyPluginTask.FailureLevel.NON_EXTENDABLE_API_USAGES,
-            VerifyPluginTask.FailureLevel.OVERRIDE_ONLY_API_USAGES,
-        )
+        // Every finding fails the build - internal, experimental and deprecated API usages included,
+        // as well as a plugin that could not be loaded without a restart - because the Marketplace
+        // expects none of them and nothing in this plugin needs any.
+        failureLevel = VerifyPluginTask.FailureLevel.ALL.toList()
     }
 
     // Marketplace credentials are never stored in the repository: both tasks read the environment,
@@ -109,6 +113,18 @@ changelog {
 tasks {
     test {
         useJUnit()
+    }
+
+    // The distribution bundles Gson (Apache License 2.0), which has to travel with its license: the
+    // plugin jar carries it, the plugin's own license and the third-party notice.
+    jar {
+        from(layout.projectDirectory) {
+            include("LICENSE", "THIRD_PARTY_NOTICES.md")
+            into("META-INF/licenses")
+        }
+        from(layout.projectDirectory.dir("licenses")) {
+            into("META-INF/licenses")
+        }
     }
 
     // The sandbox IDE reads and writes an isolated Claude Code home instead of the real ~/.claude,

@@ -36,8 +36,8 @@ import java.time.format.DateTimeFormatter
  * importing an archive twice is always safe.
  */
 class ImportClaudeSessionsAction : ClaudeSessionActionBase(
-    textKey = "action.import.text",
-    descriptionKey = "action.import.description",
+    textKey = "action.ClaudeSessionsImportExport.Import.text",
+    descriptionKey = "action.ClaudeSessionsImportExport.Import.description",
 ) {
 
     companion object {

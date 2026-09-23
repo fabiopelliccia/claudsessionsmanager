@@ -19,8 +19,8 @@ import java.time.format.DateTimeFormatter
 
 /** Tools | Claude Code sessions | Export Sessions... */
 class ExportClaudeSessionsAction : ClaudeSessionActionBase(
-    textKey = "action.export.text",
-    descriptionKey = "action.export.description",
+    textKey = "action.ClaudeSessionsImportExport.Export.text",
+    descriptionKey = "action.ClaudeSessionsImportExport.Export.description",
 ) {
 
     override fun perform(project: Project?, home: Path) {

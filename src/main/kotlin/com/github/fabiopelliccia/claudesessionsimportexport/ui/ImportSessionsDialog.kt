@@ -10,7 +10,7 @@ import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
 import com.intellij.openapi.ui.ValidationInfo
-import com.intellij.ui.SimpleListCellRenderer
+import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
@@ -23,6 +23,7 @@ import java.awt.Insets
 import java.nio.file.Path
 import javax.swing.DefaultComboBoxModel
 import javax.swing.JComponent
+import javax.swing.JList
 import javax.swing.JPanel
 
 /**
@@ -39,8 +40,20 @@ internal class ImportSessionsDialog(
     existingIds: Set<String>,
 ) : DialogWrapper(project, true) {
 
+    // ColoredListCellRenderer rather than SimpleListCellRenderer.create(): every overload of the
+    // latter is scheduled for removal from 2026.2 on, and the Plugin Verifier rejects it.
     private val conflictCombo = ComboBox(DefaultComboBoxModel(ConflictPolicy.entries.toTypedArray())).apply {
-        renderer = SimpleListCellRenderer.create("") { it.label }
+        renderer = object : ColoredListCellRenderer<ConflictPolicy>() {
+            override fun customizeCellRenderer(
+                list: JList<out ConflictPolicy>,
+                value: ConflictPolicy?,
+                index: Int,
+                selected: Boolean,
+                hasFocus: Boolean,
+            ) {
+                value?.let { append(it.label) }
+            }
+        }
     }
 
     private val relocateCheckBox = JBCheckBox(ClaudeSessionsBundle.message("dialog.import.relocate.checkbox"))
