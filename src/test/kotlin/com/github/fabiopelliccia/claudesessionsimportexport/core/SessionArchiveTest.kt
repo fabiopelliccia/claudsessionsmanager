@@ -123,6 +123,53 @@ class SessionArchiveTest {
     }
 
     @Test
+    fun `every recorded working directory is pointed at the target folder`() {
+        // Shapes taken from real transcripts: a session records its project root, directories below
+        // it, an unrelated root it was moved to mid-way, and - the trap - a sibling folder whose
+        // name merely starts like the root.
+        val sourceHome = tmp.newFolder("source7", ".claude").toPath()
+        val root = "C:\\Users\\fabio\\Demo"
+        val projectDir = sourceHome.resolve("projects").resolve(ClaudePaths.encodeProjectPath(root))
+        Files.createDirectories(projectDir)
+        val recordedCwds = listOf(
+            root,
+            "$root\\src\\main\\resources",
+            "C:\\Users\\fabio\\OtherProject",
+            "C:\\Users\\fabio\\Demo2",
+        )
+        Files.write(
+            projectDir.resolve("session-7.jsonl"),
+            recordedCwds.mapIndexed { index, recorded ->
+                """{"type":"user","message":{"role":"user","content":"m$index"},"timestamp":"2026-01-01T00:00:0$index.000Z","cwd":"${recorded.asJsonString()}","sessionId":"session-7"}"""
+            },
+        )
+        val session = SessionScanner.listSessions(sourceHome).single()
+
+        val archive = tmp.root.toPath().resolve("archive7.zip")
+        SessionArchive.export(listOf(session), archive, home = sourceHome)
+
+        val targetHome = tmp.newFolder("target7", ".claude").toPath()
+        val targetCwd = "D:\\Work\\Demo"
+        SessionArchive.import(archive, home = targetHome, targetProjectPath = targetCwd)
+
+        val transcript = targetHome.resolve("projects")
+            .resolve(ClaudePaths.encodeProjectPath(targetCwd))
+            .resolve("session-7.jsonl")
+        val written = Files.readAllLines(transcript)
+            .map { JsonParser.parseString(it).asJsonObject.get("cwd").asString }
+
+        assertEquals(
+            listOf(
+                targetCwd,                          // the root itself
+                "$targetCwd\\src\\main\\resources", // below the root: keeps its remainder
+                targetCwd,                          // another project: replaced outright
+                targetCwd,                          // sibling folder: must not become "D:\Work\Demo2"
+            ),
+            written,
+        )
+    }
+
+    @Test
     fun `imported timestamps are shifted to look recent while keeping their spacing`() {
         val sourceHome = tmp.newFolder("source5", ".claude").toPath()
         val cwd = "C:\\Users\\fabio\\demo5"

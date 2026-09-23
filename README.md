@@ -20,9 +20,11 @@ files as-is - it never parses or rewrites the conversation itself.
 
 On import, three fields of each transcript line are rewritten - nothing else is ever touched:
 
-- **`cwd`** is remapped from the original machine's project path to the local folder you picked,
-  since the recorded one is almost certainly meaningless on a different machine or for a different
-  user.
+- **`cwd`** is pointed at the local folder you picked. A session records more than one working
+  directory in practice - its project root, directories below it, and sometimes an unrelated
+  project it was moved to mid-way - so all of them are remapped: a path below the session's root
+  keeps its relative remainder, anything else is replaced outright, because it names a folder that
+  only exists on the machine the archive came from.
 - **`timestamp`** (including the one nested under a `file-history-snapshot` line's `snapshot`) is
   shifted by a single delta per session, so the whole conversation lands around "now" - the last
   message ends at import time - while every message keeps its original spacing relative to the

@@ -47,6 +47,26 @@ object SessionArchive {
         val sessions: List<SessionInfo>,
     )
 
+    /**
+     * Points every `cwd` recorded in the archive at the folder chosen on this machine.
+     *
+     * A real session does not stick to one directory: it records the project root, directories
+     * below it, and - when the session is moved to another project mid-way - a completely unrelated
+     * root. A path below [sourceRoot] therefore keeps its relative remainder, and anything else is
+     * replaced outright, because it names a folder that only exists on the machine it came from.
+     */
+    private class CwdRemap(private val sourceRoot: String?, private val target: String) {
+
+        fun apply(recorded: String): String {
+            if (sourceRoot != null && recorded.startsWith(sourceRoot, ignoreCase = true)) {
+                val rest = recorded.substring(sourceRoot.length)
+                // Only a separator makes it a descendant: `...\Demo` must not swallow `...\Demo2`.
+                if (rest.isEmpty() || rest.startsWith('\\') || rest.startsWith('/')) return target + rest
+            }
+            return target
+        }
+    }
+
     fun export(
         sessions: List<SessionInfo>,
         destination: Path,
@@ -171,13 +191,7 @@ object SessionArchive {
                     rewriteToId = null
                 }
 
-                val cwdRewrite = if (targetProjectPath != null && session.projectPath != null &&
-                    targetProjectPath != session.projectPath
-                ) {
-                    session.projectPath to targetProjectPath
-                } else {
-                    null
-                }
+                val cwdRemap = targetProjectPath?.let { CwdRemap(session.projectPath, it) }
                 val timestampDelta = if (shiftTimestampsToNow) {
                     TimestampShift.deltaToNow(session.lastTimestamp ?: session.firstTimestamp)
                 } else {
@@ -190,7 +204,7 @@ object SessionArchive {
                     targetDir.resolve("$writtenId.jsonl"),
                     originalId = session.id,
                     rewriteToId = rewriteToId,
-                    cwdRewrite = cwdRewrite,
+                    cwdRemap = cwdRemap,
                     timestampDelta = timestampDelta,
                 )
 
@@ -223,10 +237,10 @@ object SessionArchive {
         target: Path,
         originalId: String,
         rewriteToId: String?,
-        cwdRewrite: Pair<String, String>?,
+        cwdRemap: CwdRemap?,
         timestampDelta: Duration,
     ) {
-        if (rewriteToId == null && cwdRewrite == null && timestampDelta.isZero) {
+        if (rewriteToId == null && cwdRemap == null && timestampDelta.isZero) {
             zip.getInputStream(entry).use { input ->
                 Files.copy(input, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
             }
@@ -238,7 +252,7 @@ object SessionArchive {
             if (line.isBlank()) return@map line
             val obj = runCatching { JsonParser.parseString(line) }.getOrNull()
                 ?.takeIf { it.isJsonObject }?.asJsonObject ?: return@map line
-            rewriteLine(obj, originalId, rewriteToId, cwdRewrite, timestampDelta)
+            rewriteLine(obj, originalId, rewriteToId, cwdRemap, timestampDelta)
             compactGson.toJson(obj)
         }
         Files.write(target, rewritten.joinToString("\n").toByteArray(StandardCharsets.UTF_8))
@@ -248,16 +262,13 @@ object SessionArchive {
         obj: JsonObject,
         originalId: String,
         rewriteToId: String?,
-        cwdRewrite: Pair<String, String>?,
+        cwdRemap: CwdRemap?,
         timestampDelta: Duration,
     ) {
         rewriteStringField(obj, "sessionId") { text ->
             if (rewriteToId != null && text == originalId) rewriteToId else null
         }
-        rewriteStringField(obj, "cwd") { text ->
-            cwdRewrite?.takeIf { (from, _) -> text.startsWith(from, ignoreCase = true) }
-                ?.let { (from, to) -> to + text.substring(from.length) }
-        }
+        rewriteStringField(obj, "cwd") { text -> cwdRemap?.apply(text) }
         rewriteStringField(obj, "timestamp") { text -> TimestampShift.shift(text, timestampDelta) }
 
         // The only known nested spot: a `file-history-snapshot` line carries a second copy of the
