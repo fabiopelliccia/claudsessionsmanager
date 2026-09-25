@@ -92,6 +92,10 @@ data class ExportOutcome(
     val warnings: List<String>,
     /** Files that could not be read: the archive restores those sessions incomplete. */
     val unreadableFiles: Int = 0,
+    /** `attachment` lines whose embedded account email and git identity were removed, see [SessionRedactor]. */
+    val redactedIdentityLines: Int = 0,
+    /** `attachment` lines whose own-machine scratch folder path was removed, see [SessionRedactor]. */
+    val redactedScratchpadPaths: Int = 0,
 )
 
 /** Facts about the running IDE the import log records; supplied by `ui/`, which may read them. */

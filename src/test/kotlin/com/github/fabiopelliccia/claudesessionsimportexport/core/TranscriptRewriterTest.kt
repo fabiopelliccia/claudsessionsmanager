@@ -59,6 +59,31 @@ class TranscriptRewriterTest {
     }
 
     @Test
+    fun `an environment attachment's working directory follows cwd, the extra ones follow files`() {
+        val (written) = rewrite(
+            """{"type":"attachment","attachment":{"type":"environment","snapshot":{"workingDirectory":"C:\\src\\Demo\\sub","additionalWorkingDirectories":["C:\\src\\Demo\\extra","C:\\Unrelated\\Other"],"scratchpadDirectory":"C:\\Temp\\scratch","platform":"win32"}}}""",
+        )
+        // Nested under the root: both keep their relative remainder. Outside it: workingDirectory
+        // still falls back to the attached folder (same rule as top-level cwd), but the additional
+        // one is left exactly as recorded - it may be an entirely unrelated project.
+        assertEquals(
+            """{"type":"attachment","attachment":{"type":"environment","snapshot":{"workingDirectory":"D:\\Work\\Demo\\sub","additionalWorkingDirectories":["D:\\Work\\Demo\\extra","C:\\Unrelated\\Other"],"scratchpadDirectory":"C:\\Temp\\scratch","platform":"win32"}}}""",
+            written,
+        )
+    }
+
+    @Test
+    fun `an environment attachment with no working directory of its own is left untouched`() {
+        val (written) = rewrite(
+            """{"type":"attachment","attachment":{"type":"environment","snapshot":{"scratchpadDirectory":"C:\\Temp\\scratch"}}}""",
+        )
+        assertEquals(
+            """{"type":"attachment","attachment":{"type":"environment","snapshot":{"scratchpadDirectory":"C:\\Temp\\scratch"}}}""",
+            written,
+        )
+    }
+
+    @Test
     fun `what the user and Claude said to each other is never touched`() {
         // The same kinds of values the rewriter changes elsewhere - a path below the root, an ISO
         // instant, the session id - but inside `message` and `toolUseResult`, where they are content.

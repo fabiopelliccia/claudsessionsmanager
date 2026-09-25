@@ -147,8 +147,9 @@ class ImportDiagnostics(private val home: Path) {
 
     /**
      * Counts the machine facing values that still point below [sourceRoot] after the rewrite: the
-     * working directories and the file history paths, never the conversation. Nothing counts when
-     * the session stayed in its own folder, or was attached below the folder it came from.
+     * working directories, the file history paths and an `environment` attachment's own working
+     * directories, never the conversation. Nothing counts when the session stayed in its own folder,
+     * or was attached below the folder it came from.
      */
     private fun countResidualPaths(objects: List<JsonObject>, sourceRoot: String?, attached: String?): Int {
         if (sourceRoot.isNullOrEmpty() || attached == null) return 0
@@ -162,6 +163,13 @@ class ImportDiagnostics(private val home: Path) {
             obj.obj("snapshot")?.obj("trackedFileBackups")?.entrySet()?.forEach { (path, value) ->
                 if (stale(path)) hits++
                 if (value.isJsonObject && stale(value.asJsonObject.string("realParentDir"))) hits++
+            }
+            val attachment = obj.obj("attachment")?.takeIf { it.string("type") == "environment" }
+            attachment?.obj("snapshot")?.let { envSnapshot ->
+                if (stale(envSnapshot.string("workingDirectory"))) hits++
+                envSnapshot.get("additionalWorkingDirectories")?.takeIf { it.isJsonArray }?.asJsonArray?.forEach {
+                    if (it.isJsonPrimitive && it.asJsonPrimitive.isString && stale(it.asString)) hits++
+                }
             }
             hits
         }

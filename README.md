@@ -8,7 +8,7 @@ Permette di scegliere puntualmente quali conversazioni esportare e quali riprist
 alla cartella di progetto della macchina di destinazione e di ritrovarle subito con
 `claude --resume`, datate come se fossero appena avvenute.
 
-> Versione di sviluppo **0.0.2**.
+> Versione di sviluppo **0.0.3**.
 
 ## Funzionalità
 
@@ -93,7 +93,7 @@ origine).
 ### Formato dell'archivio
 
 ```
-manifest.json                        # versione formato, data, producer, home di origine, elenco sessioni
+manifest.json                        # versione formato, data, producer, elenco sessioni
 sessions/<id>/transcript.jsonl       # il transcript
 sessions/<id>/aux/...                # copia fedele di projects/<cartella>/<id>/, se presente
 sessions/<id>/file-history/...       # copia fedele di file-history/<id>/, se presente
@@ -102,7 +102,38 @@ sessions/<id>/file-history/...       # copia fedele di file-history/<id>/, se pr
 L'archivio è **autodescrittivo**: `manifest.json` dichiara la versione del formato, oggi **1**, ed
 elenca solo le sessioni effettivamente scritte. Una entry che manca — ad esempio la cronologia dei file
 di una sessione che non ha mai modificato file — viene gestita per la sua assenza, non in base al
-numero di formato, che serve solo a rifiutare un layout incomprensibile a questa build.
+numero di formato, che serve solo a rifiutare un layout incomprensibile a questa build. Dalla 0.0.3 il
+manifest non registra più la home Claude Code della macchina di origine: era solo informativa e conteneva
+sempre il nome utente del sistema operativo di chi ha esportato.
+
+### Privacy dell'export
+
+Oltre al transcript stesso, Claude Code scrive in ogni sessione due tipi di riga `attachment` per
+proprio conto, mai perché l'utente le abbia scritte: una riga `session_context` con l'indirizzo email
+dell'account e l'esito di `git status` (che include il nome configurato in `user.name`), e una riga
+`environment` con, fra l'altro, la cartella di lavoro temporanea che Claude Code usa per la sessione
+(`scratchpadDirectory`), sempre sotto la cartella temporanea del sistema operativo e quindi sempre con
+il nome dell'account che l'ha creata.
+
+A partire dalla 0.0.3 l'export rimuove questi due elementi da **ogni** file `.jsonl` che scrive — il
+transcript principale e ogni transcript di subagent nella cartella ausiliaria — prima di scriverli
+nell'archivio: l'archivio stesso non li contiene mai, indipendentemente da chi lo legga e da se venga
+mai importato. La stessa email e lo stesso testo di `git status`, quando Claude Code li ripete anche nel
+promemoria di sistema già pronto che tiene accanto all'attachment, vengono tolti anche lì, lasciando
+intorno il resto del blocco intatto. La notifica di export riporta quante righe sono state ripulite.
+
+La cartella di lavoro `environment.workingDirectory` (e le eventuali cartelle aggiuntive) **non** viene
+toccata qui: è un percorso di progetto vero e proprio, non un dettaglio dell'esportatore, e segue invece
+la stessa rimappatura di `cwd` descritta in [Riscrittura del transcript](#riscrittura-del-transcript),
+quando la sessione viene agganciata a una cartella in fase di import.
+
+**Cosa non viene toccato, e perché.** Se l'utente ha digitato la propria email o il proprio nome in una
+conversazione, o se Claude ha riletto un file che li contiene, quel testo resta nel transcript esportato
+esattamente come nella conversazione originale: è contenuto della conversazione, non un dettaglio
+tecnico della macchina, e il plugin non lo tocca mai, per lo stesso motivo per cui non riscrive mai
+`message` o `toolUseResult` (vedi [Riscrittura del transcript](#riscrittura-del-transcript)). Provare a
+individuare e cancellare "informazioni che sembrano personali" dentro al testo della conversazione
+significherebbe rischiare di corrompere codice o dati legittimi che le contengono per altri motivi.
 
 ## Una sessione, un posto solo
 
@@ -156,18 +187,20 @@ Claude Code esattamente da quel percorso.
 La riscrittura è **strutturale** (JSON per JSON, chiave per chiave), mai una sostituzione di testo, e
 tocca solo i campi che descrivono la macchina, nelle posizioni in cui Claude Code li scrive: il primo
 livello della riga, lo `snapshot` delle righe `file-history-snapshot` (con la sua mappa
-`trackedFileBackups`) e il `backup` delle righe `file-history-delta`.
+`trackedFileBackups`), il `backup` delle righe `file-history-delta` e lo `snapshot` di una riga
+`attachment` di tipo `environment` (le cartelle di lavoro della sessione, vedi
+[Privacy dell'export](#privacy-dellexport) per il resto di quella riga).
 
 | Campo | Trattamento |
 |---|---|
 | `sessionId`, `session_id` | sostituiti dal nuovo id, solo quando la sessione viene duplicata |
-| `cwd` | rimappato alla cartella scelta |
-| `realParentDir`, `trackingPath`, chiavi di `trackedFileBackups` | rimappati se sotto la radice di origine |
+| `cwd`, `environment.snapshot.workingDirectory` | rimappati alla cartella scelta, anche se fuori dalla radice di origine |
+| `realParentDir`, `trackingPath`, chiavi di `trackedFileBackups`, `environment.snapshot.additionalWorkingDirectories` | rimappati se sotto la radice di origine, lasciati com'erano altrimenti |
 | `timestamp`, `backupTime` (ISO-8601) | traslati, nella stessa forma in cui sono stati letti |
 | `startTime` (epoch in millisecondi, riga `cost-state`) | traslato |
 
-Tutto il resto — in particolare `message`, `toolUseResult`, `attachment` e qualunque percorso vi
-compaia — è ciò che si sono detti utente e Claude e **non viene mai toccato**. Le righe in cui nessuno
+Tutto il resto — in particolare `message`, `toolUseResult`, il resto di ogni `attachment` e qualunque
+percorso vi compaia — è ciò che si sono detti utente e Claude e **non viene mai toccato**. Le righe in cui nessuno
 di quei campi cambia vengono copiate byte per byte; le altre vengono riscritte conservando i campi
 `null`, senza trasformare `<`, `>`, `=`, `'`, `&` in sequenze `\u003c`, e mantenendo i fine riga,
 incluso l'a-capo finale, di cui Claude Code ha bisogno per accodare righe quando la sessione viene
@@ -331,7 +364,7 @@ La coppia chiave/certificato si genera come descritto nella
 il token si crea dal profilo sul [Marketplace](https://plugins.jetbrains.com/author/me/tokens).
 
 Il canale di pubblicazione è dedotto da `pluginVersion`: una versione senza suffisso va sul canale
-`default`, mentre una pre-release come `0.0.2-beta.1` va sul canale omonimo (`beta`), visibile solo a
+`default`, mentre una pre-release come `0.0.3-beta.1` va sul canale omonimo (`beta`), visibile solo a
 chi lo ha aggiunto fra i repository dei plugin.
 
 ### Compatibilità
@@ -408,7 +441,9 @@ set JAVA_TOOL_OPTIONS=-Djdk.net.unixdomain.tmpdir=C:\Users\<utente>\AppData\Loca
 * Lo ZIP del plugin include [Gson](https://github.com/google/gson), con licenza
   [Apache 2.0](licenses/Apache-2.0.txt): vedi [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
   Licenza, avviso e testo Apache sono anche dentro il jar, in `META-INF/licenses/`.
-* Il plugin non raccoglie né trasmette alcun dato: vedi [`PRIVACY.md`](PRIVACY.md).
+* Il plugin non raccoglie né trasmette alcun dato: vedi [`PRIVACY.md`](PRIVACY.md). Dalla 0.0.3
+  l'export rimuove anche, dagli archivi che crea, l'email dell'account e l'identità git
+  dell'esportatore: vedi [Privacy dell'export](#privacy-dellexport).
 * Claude e Claude Code sono marchi di Anthropic, PBC; IntelliJ IDEA e JetBrains sono marchi di
   JetBrains s.r.o. Questo è un progetto indipendente, non affiliato né approvato da Anthropic o da
   JetBrains.

@@ -2,7 +2,7 @@
 
 Documento di origine del progetto: raccoglie, nella forma in cui sono stati espressi, i requisiti che
 hanno portato alla **0.0.0**, la prima versione di sviluppo, e le richieste successive fino alla
-**0.0.2**, quella attuale. Non è una specifica tecnica: la
+**0.0.3**, quella attuale. Non è una specifica tecnica: la
 specifica operativa, con vincoli, architettura e checklist, è `documentation/TASK.md`.
 
 Il progetto è il gemello di *Github Copilot sessions*, da cui questi due documenti sono stati
@@ -59,6 +59,19 @@ portabile e a ripristinarle dove servono.
 * **Versione `0.0.2`**, con le novità aggiunte al changelog senza togliere quelle delle versioni
   precedenti.
 
+### Richieste della 0.0.3
+
+* **Niente riferimenti alla mia utenza né ai miei percorsi nell'export.** L'archivio esportato non deve
+  contenere l'email dell'account né l'identità git di chi esporta.
+* **Import senza conflitti fra macchina e utente diversi.** Il contenuto esportato dal PC 1 deve poter
+  essere importato sul PC 2 (macchina e utente diversi) senza conflitti e in modo corretto.
+* **Datazione locale al PC 2, non al PC 1.** Le sessioni importate dal PC 1 vanno gestite come sessioni
+  create localmente sul PC 2, con il timestamp di importazione del PC 2, non con quello di creazione
+  del PC 1. Verificato: era già così dalla 0.0.0 (vedi *Datazione locale* sopra); riconfermato con un
+  test end-to-end dedicato al trasferimento fra due macchine.
+* **Versione `0.0.3`**, con le novità aggiunte al changelog senza togliere quelle delle versioni
+  precedenti.
+
 ## Dove è finito ciascun requisito
 
 | Requisito | Documentazione |
@@ -72,3 +85,4 @@ portabile e a ripristinarle dove servono.
 | Icona, Overview, What's New, versione | `plugin.xml`, `build.gradle.kts`, `gradle.properties`, §7 di `TASK.md` |
 | Icona nel menu, logo, riavvii (0.0.1) | `README.md` → *Installazione e riavvii*, §3 e §7.1 di `TASK.md` |
 | Nome della sessione (0.0.2) | `README.md` → *Il nome della sessione*, §2 di `TASK.md` |
+| Privacy dell'export, import fra macchine e utenti diversi (0.0.3) | `README.md` → *Privacy dell'export*, `PRIVACY.md`, §4.3 e §4.6 di `TASK.md` |
