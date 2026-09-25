@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-09-25
+
+Development version.
+
+### Added
+
+- Export removes the exporting user's own identity from the archive before writing it: the account
+  email and the local `git status` output (which includes the configured git user name), embedded by
+  Claude Code itself in a `session_context` attachment and mirrored in its pre-rendered
+  `<system-reminder>` cache. Applied to every `.jsonl` file the export writes - the main transcript and
+  any subagent transcript under the auxiliary folder - so the archive itself never carries them,
+  whether or not it is ever imported, and by whom. The export notification reports how many lines were
+  cleaned.
+- Export also removes Claude Code's own per-session scratch folder path (an `environment` attachment's
+  `scratchpadDirectory`), always under the OS temp directory and so always naming the account that ran
+  it, and of no use on another machine, where a fresh one is created regardless.
+- The archive manifest no longer records the source machine's Claude Code home path: it always embedded
+  the exporting user's OS account name and had no functional use.
+- Import now also remaps an `environment` attachment's own working directory and additional working
+  directories when the session is attached to a folder, the same way `cwd` and the file history paths
+  already were - closing the last gap where a project path could survive an attach-to-folder import
+  unmapped. The visibility diagnosis (check #11) now also catches a regression here.
+- What none of the above touches, on purpose: if the account email or git user name appears inside the
+  conversation itself - because it was typed, or because a file Claude read or edited contains it -
+  that text is conversation content and is kept exactly as it was, for the same reason the conversation
+  itself is never rewritten. Verified against every real transcript on the development machine: all
+  structural occurrences were removed, and the only text that survived was inside `message`,
+  `toolUseResult` or a file-editing attachment.
+- A dedicated end-to-end test exports a session from one simulated machine and account and imports it
+  into a different one, on a different drive, confirming: no conflict (a fresh id imports as "new"),
+  no identity or scratch path left anywhere, every project folder correctly pointed at the destination,
+  and every timestamp landing at import time on the destination machine, never at the source machine's
+  original time - reconfirming a guarantee already in place since 0.0.0.
+
 ## [0.0.2] - 2026-09-23
 
 Development version.

@@ -67,6 +67,10 @@ class ExportClaudeSessionsAction : ClaudeSessionActionBase(
                     if (outcome.unreadableFiles > 0) {
                         append("<br/>" + ClaudeSessionsBundle.message("notification.export.unreadableFiles"))
                     }
+                    val sanitized = outcome.redactedIdentityLines + outcome.redactedScratchpadPaths
+                    if (sanitized > 0) {
+                        append("<br/>" + ClaudeSessionsBundle.message("notification.export.sanitized", sanitized))
+                    }
                 }
                 val action = ClaudeNotifications.showArchiveAction(destination)
                 if (outcome.warnings.isEmpty()) {

@@ -1,6 +1,7 @@
 package com.github.fabiopelliccia.claudesessionsimportexport.core
 
 import com.google.gson.GsonBuilder
+import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import java.time.Duration
@@ -10,10 +11,12 @@ import java.time.Duration
  *
  * Only the machine facing fields listed in the companion object are ever rewritten, and only at
  * the structural positions Claude Code writes them at: the top level of a line, the `snapshot` of a
- * `file-history-snapshot` line (with its `trackedFileBackups` map, keyed by absolute file path) and
- * the `backup` of a `file-history-delta` line. Nothing below `message`, `toolUseResult`,
- * `attachment` or any other key is ever looked at: that is what the user and Claude said to each
- * other, and file paths mentioned there belong to the conversation, not to this machine.
+ * `file-history-snapshot` line (with its `trackedFileBackups` map, keyed by absolute file path), the
+ * `backup` of a `file-history-delta` line, and the `snapshot` of an `environment` attachment line
+ * (the working directories Claude Code recorded for the session, alongside identity fields another
+ * pass already stripped at export - see [SessionRedactor]). Nothing below `message`, `toolUseResult`,
+ * an attachment's own content or any other key is ever looked at: that is what the user and Claude
+ * said to each other, and file paths mentioned there belong to the conversation, not to this machine.
  *
  * A line none of those fields changes on is kept verbatim, and so are the line endings - including
  * the trailing newline Claude Code relies on when it appends to the transcript of a resumed session.
@@ -35,6 +38,14 @@ class TranscriptRewriter(
         /** Keys holding the absolute path of a file or of its folder, see [PathMapper.mapFile]. */
         val FILE_PATH_KEYS = setOf("realParentDir", "trackingPath")
 
+        /** The `attachment.snapshot` keys of an `environment` line: the project folders Claude Code
+         *  had open for the session. [WORKING_DIRECTORY] follows [CWD_KEYS]' rule (falls back to the
+         *  attached folder outside the source root); [ADDITIONAL_WORKING_DIRECTORIES] follows
+         *  [FILE_PATH_KEYS]' rule instead (left untouched outside it), since an extra directory a
+         *  project happened to add is not necessarily related to the primary one at all. */
+        const val WORKING_DIRECTORY = "workingDirectory"
+        const val ADDITIONAL_WORKING_DIRECTORIES = "additionalWorkingDirectories"
+
         /** Keys holding an ISO-8601 instant. */
         val ISO_TIMESTAMP_KEYS = setOf("timestamp", "backupTime")
 
@@ -44,6 +55,8 @@ class TranscriptRewriter(
         private const val SNAPSHOT = "snapshot"
         private const val TRACKED_FILE_BACKUPS = "trackedFileBackups"
         private const val BACKUP = "backup"
+        private const val ATTACHMENT = "attachment"
+        private const val ENVIRONMENT_TYPE = "environment"
 
         // JSONL is one compact object per line. Gson's defaults would also drop `null` members
         // (`"parentUuid":null`) and turn `<`, `>`, `=`, `'`, `&` into `<` style escapes, so
@@ -99,6 +112,44 @@ class TranscriptRewriter(
         }
         obj.get(BACKUP)?.takeIf { it.isJsonObject }?.asJsonObject?.let { backup ->
             changed = rewriteFields(backup, "$BACKUP.", stats) || changed
+        }
+        obj.get(ATTACHMENT)?.takeIf { it.isJsonObject }?.asJsonObject?.let { attachment ->
+            if (attachment.stringOrNull("type") == ENVIRONMENT_TYPE) {
+                attachment.get(SNAPSHOT)?.takeIf { it.isJsonObject }?.asJsonObject?.let { envSnapshot ->
+                    changed = rewriteEnvironmentSnapshot(envSnapshot, stats) || changed
+                }
+            }
+        }
+        return changed
+    }
+
+    /**
+     * The two project-folder fields of an `environment` attachment's `snapshot`: the working
+     * directory Claude Code had open, and any extra ones the project added. Both are directories,
+     * never files, but only [WORKING_DIRECTORY] is treated as *the* project root - see the
+     * companion object.
+     */
+    private fun rewriteEnvironmentSnapshot(snapshot: JsonObject, stats: Stats): Boolean {
+        val prefix = "$ATTACHMENT.$SNAPSHOT."
+        var changed = rewriteString(snapshot, WORKING_DIRECTORY, prefix, stats) { text -> mapper?.mapCwd(text) }
+        val directories = snapshot.get(ADDITIONAL_WORKING_DIRECTORIES)?.takeIf { it.isJsonArray }?.asJsonArray
+            ?: return changed
+        var arrayChanged = false
+        val rebuilt = JsonArray()
+        for (element in directories) {
+            val text = element.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
+            val mapped = text?.let { mapper?.mapFile(it) }
+            if (mapped != null) {
+                rebuilt.add(mapped)
+                arrayChanged = true
+            } else {
+                rebuilt.add(element)
+            }
+        }
+        if (arrayChanged) {
+            snapshot.add(ADDITIONAL_WORKING_DIRECTORIES, rebuilt)
+            stats.count(prefix + ADDITIONAL_WORKING_DIRECTORIES)
+            changed = true
         }
         return changed
     }
@@ -167,4 +218,7 @@ class TranscriptRewriter(
         stats.count(prefix + key)
         return true
     }
+
+    private fun JsonObject.stringOrNull(key: String): String? =
+        get(key)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
 }

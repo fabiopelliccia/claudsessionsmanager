@@ -1,9 +1,9 @@
-# Work order 0.0.2 — Session Porter for Claude Code
+# Work order 0.0.3 — Session Porter for Claude Code
 
 > **Destinatario:** l'agente di sviluppo che lavora su questo repository.
 > **Ruolo:** sviluppatore del plugin IntelliJ qui contenuto.
 > **Istruzione:** leggi l'intero documento prima di toccare il codice. Descrive il perimetro
-> funzionale e i vincoli della **0.0.2**, la versione di sviluppo attuale: è la specifica di
+> funzionale e i vincoli della **0.0.3**, la versione di sviluppo attuale: è la specifica di
 > riferimento, non un elenco di modifiche incrementali. Ogni intervento futuro parte da qui e, al
 > termine, deve superare la checklist di §8.
 
@@ -35,6 +35,7 @@ descrive Claude Code (vedi §3).
 | `core/SessionScanner.kt` | elenco e lettura dei transcript locali (`listSessions()`, `existingTranscripts()`, `describe()`) |
 | `core/SessionTitle.kt` | nome leggibile di una sessione, identico in export e in import |
 | `core/SessionArchive.kt` | export/import e orchestrazione (`export()`, `readArchiveManifest()`, `import()`) |
+| `core/SessionRedactor.kt` | rimozione, all'export, dell'identità dell'utente e del percorso di lavoro temporaneo di Claude Code |
 | `core/TranscriptRewriter.kt` | riscrittura strutturale del transcript, liste contrattuali dei campi |
 | `core/PathMapper.kt` | traduzione dei percorsi fra le due macchine |
 | `core/TimestampShift.kt` | traslazione dei timestamp verso il momento dell'import |
@@ -54,6 +55,7 @@ descrive Claude Code (vedi §3).
 | `src/test/kotlin/.../core/ClaudePathsTest.kt` | codifica e normalizzazione dei percorsi, `PathMapper` |
 | `src/test/kotlin/.../core/SessionScannerTest.kt` | lettura dei transcript |
 | `src/test/kotlin/.../core/SessionTitleTest.kt` | scelta del nome di una sessione |
+| `src/test/kotlin/.../core/SessionRedactorTest.kt` | rimozione dell'identità e del percorso temporaneo, riga per riga |
 | `src/test/kotlin/.../core/ClaudeSessionsBundleTest.kt` | fallback e completezza delle traduzioni, allineamento del nome |
 
 ### Vincoli architetturali da rispettare
@@ -66,7 +68,11 @@ descrive Claude Code (vedi §3).
    un campo che non si è verificato.
 3. **Il contenuto della conversazione non si tocca mai.** Le riscritture sono strutturali
    (JSON per JSON, chiave per chiave), limitate ai campi e alle posizioni di §4.3, mai sostituzioni di
-   testo sul transcript.
+   testo sul transcript. L'unica eccezione, altrettanto ristretta, è `SessionRedactor` (§4.6): toglie
+   due valori scritti da Claude Code per conto proprio (mai dall'utente) da due sole posizioni note
+   (`attachment.context` di una riga `session_context`, `attachment.snapshot` di una riga
+   `environment`) — mai da `message`, `toolUseResult` o dal resto di un `attachment`, nemmeno quando
+   quei valori vi ricompaiono perché l'utente li ha scritti o un file li contiene.
 4. **Il log diagnostico non può far fallire l'import** e non contiene mai testo di conversazione —
    nemmeno il nome della sessione, che senza una riga `summary` è un'anteprima del primo messaggio.
 5. **Nessuna API interna, sperimentale o deprecata.** Il plugin non dipende da altri plugin e la
@@ -91,16 +97,21 @@ descrive Claude Code (vedi §3).
 
 ---
 
-## 2. Perimetro funzionale della 0.0.2
+## 2. Perimetro funzionale della 0.0.3
 
 * **`Tools | Claude Code sessions | Export Sessions...`** — elenco di tutte le sessioni locali
   (nome, cartella, branch, data, messaggi, dimensione, id) con filtro e selezione multipla; salva la
-  selezione in un archivio ZIP.
+  selezione in un archivio ZIP, ripulito da `SessionRedactor` (§4.6).
 * **`Tools | Claude Code sessions | Import Sessions...`** — legge un archivio, segnala le sessioni
   già presenti, applica la politica di conflitto scelta (*Skip*, *Replace*, *Duplicate*, che è il
   default) e offre l'opzione **"Attach the imported sessions to this folder"**.
-* **Notifica di esito** per entrambe le operazioni: *Show archive* dopo un export; *Show import log*
-  dopo ogni import e, quando almeno una sessione è stata importata, *Copy resume command*.
+* **Notifica di esito** per entrambe le operazioni: *Show archive* e, quando l'export ha ripulito
+  almeno una riga, il conteggio, dopo un export; *Show import log* dopo ogni import e, quando almeno
+  una sessione è stata importata, *Copy resume command*.
+* **Portabilità fra macchine e utenti diversi**, senza modifiche di configurazione: un archivio
+  esportato da un PC e un account non contiene l'identità di chi l'ha esportato (§4.6), un id già
+  usato sulla macchina di destinazione non genera mai un conflitto (§4.2) e ogni sessione importata
+  è datata come appena avvenuta sulla macchina di destinazione, non su quella di origine (§4.5).
 
 Il nome di una sessione, nella colonna *Session* di entrambe le tabelle e nelle notifiche, lo sceglie
 `SessionTitle`, nell'ordine: `customTitle`, riga `summary`, primo prompt digitato (esclusi `isMeta`,
@@ -165,11 +176,15 @@ processi della macchina di origine).
 ### 4.1 Formato dell'archivio
 
 ```
-manifest.json                    # formatVersion, exportedAt, producer, sourceHome, sessions
-sessions/<id>/transcript.jsonl   # il transcript
-sessions/<id>/aux/...            # copia fedele di projects/<cartella>/<id>/
-sessions/<id>/file-history/...   # copia fedele di file-history/<id>/
+manifest.json                    # formatVersion, exportedAt, producer, sessions
+sessions/<id>/transcript.jsonl   # il transcript, ripulito da SessionRedactor (§4.6)
+sessions/<id>/aux/...            # copia di projects/<cartella>/<id>/, i suoi .jsonl ripuliti allo stesso modo
+sessions/<id>/file-history/...   # copia fedele di file-history/<id>/ (mai ripulita: non è un transcript)
 ```
+
+`ArchiveManifest.sourceHome` esiste ancora, nullable, solo per leggere un archivio scritto da una
+build precedente alla 0.0.3: l'export non lo scrive più, perché conteneva sempre la home Claude Code
+della macchina di origine, cioè il nome utente del sistema operativo di chi ha esportato.
 
 `SessionArchive.FORMAT_VERSION` vale **1**. L'archivio è autodescrittivo: una entry che manca si
 gestisce per la sua assenza, mai in base al numero di formato, che serve solo a rifiutare un layout
@@ -203,21 +218,24 @@ Claude Code troverà, non ciò che l'import intendeva scrivere.
 `TranscriptRewriter` adatta il transcript alla macchina di destinazione, **chiave per chiave**, solo
 nelle posizioni in cui Claude Code scrive i campi che descrivono la macchina: il primo livello della
 riga, lo `snapshot` delle righe `file-history-snapshot` (con la mappa `trackedFileBackups`, indicizzata
-per percorso del file) e il `backup` delle righe `file-history-delta`. Le liste sono contrattuali e
-verificate da `TranscriptRewriterTest`:
+per percorso del file), il `backup` delle righe `file-history-delta` e, da §4.6 in poi già ripulito da
+`SessionRedactor`, lo `snapshot` di una riga `attachment` di tipo `environment`. Le liste sono
+contrattuali e verificate da `TranscriptRewriterTest`:
 
 | Lista | Chiavi | Trattamento |
 |---|---|---|
 | `ID_KEYS` | `sessionId`, `session_id` | nuovo id, solo con *Duplicate* |
 | `CWD_KEYS` | `cwd` | `PathMapper.mapCwd()` |
 | `FILE_PATH_KEYS` | `realParentDir`, `trackingPath` (+ chiavi di `trackedFileBackups`) | `PathMapper.mapFile()` |
+| `WORKING_DIRECTORY` | `attachment.snapshot.workingDirectory` (riga `environment`) | `PathMapper.mapCwd()`, come `CWD_KEYS` |
+| `ADDITIONAL_WORKING_DIRECTORIES` | `attachment.snapshot.additionalWorkingDirectories[]` (riga `environment`) | `PathMapper.mapFile()`, come `FILE_PATH_KEYS` |
 | `ISO_TIMESTAMP_KEYS` | `timestamp`, `backupTime` | traslazione nella stessa forma |
 | `EPOCH_MILLIS_KEYS` | `startTime` | traslazione dell'epoch in millisecondi |
 
-**Niente altro.** `message`, `toolUseResult`, `attachment` e ogni altra chiave contengono ciò che si
-sono detti utente e Claude e non vengono mai visitati (vincolo §1.3), nemmeno quando contengono un
-percorso o un timestamp. Allargare una lista significa rischiare di riscrivere un valore che
-appartiene alla conversazione: va fatto solo con un test che dimostri il contrario.
+**Niente altro.** `message`, `toolUseResult`, il resto di ogni `attachment` e ogni altra chiave
+contengono ciò che si sono detti utente e Claude e non vengono mai visitati (vincolo §1.3), nemmeno
+quando contengono un percorso o un timestamp. Allargare una lista significa rischiare di riscrivere un
+valore che appartiene alla conversazione: va fatto solo con un test che dimostri il contrario.
 
 Una riga in cui nessun campo cambia resta **byte per byte** com'era. Le altre vengono riemesse con
 Gson configurato con `serializeNulls()` e `disableHtmlEscaping()`, altrimenti i campi `null`
@@ -258,6 +276,42 @@ forma in cui li ha letti: ISO-8601 UTC con suffisso `Z` e lo stesso numero di ci
 zero), epoch in millisecondi a 13 cifre. Un valore che non corrisponde a nessuna delle due forme resta
 **invariato**: meglio un timestamp non traslato che una riga corrotta.
 
+### 4.6 Privacy dell'export
+
+Claude Code scrive, per conto proprio e mai perché l'utente le abbia digitate, due righe `attachment`
+che portano l'identità di chi esporta:
+
+* `session_context`: `attachment.context.userEmail` (l'email dell'account) e `.gitStatus` (l'esito di
+  `git status`, che include `user.name`); lo stesso testo, verbatim, è mirrorato anche nel blocco
+  `<system-reminder>` già pronto che la riga porta in `rendered[].content`;
+* `environment`: `attachment.snapshot.scratchpadDirectory`, la cartella di lavoro temporanea che
+  Claude Code usa per la sessione, sempre sotto la cartella temporanea del sistema operativo e quindi
+  sempre con il nome dell'account.
+
+`SessionRedactor.redact()` toglie questi valori, **all'export**, non all'import: l'archivio stesso non
+li contiene mai, anche se non verrà mai importato o verrà letto da chiunque. Rimuove le due chiavi da
+`context`, e nel testo mirrorato di `rendered[].content` sostituisce solo le sottostringhe esatte già
+tolte da `context` con un segnaposto, lasciando intorno il resto del blocco intatto; sostituisce
+`scratchpadDirectory` con lo stesso segnaposto. È applicato a **ogni** file `.jsonl` che l'export
+scrive: il transcript principale e ogni transcript di subagent sotto la cartella ausiliaria (stessa
+forma, stesso rischio) — mai alla cronologia dei file, backup grezzi del codice dell'utente, mai un
+transcript. `ExportOutcome.redactedIdentityLines`/`redactedScratchpadPaths` contano le righe toccate,
+riportate nella notifica quando la somma è maggiore di zero.
+
+`environment.snapshot.workingDirectory` e `.additionalWorkingDirectories` **non** sono toccati qui: a
+differenza dell'email e della cartella temporanea, sono percorsi di progetto veri e propri, quindi
+seguono invece la stessa rimappatura di `cwd` all'import, quando la sessione viene agganciata a una
+cartella (§4.3) — coerente col resto dell'architettura, che rimappa i percorsi funzionali invece di
+cancellarli.
+
+Il confine è lo stesso del vincolo §1.3: se l'utente ha scritto la propria email o il proprio nome
+nella conversazione, o un file che Claude ha letto o modificato li contiene, quel testo è contenuto
+della conversazione — vive sotto `message`, `toolUseResult` o dentro un `attachment` di tipo diverso
+(ad esempio `edited_text_file`) — e non viene mai toccato, per lo stesso motivo per cui non lo è nessun
+altro contenuto della conversazione. Verificato leggendo tutti i transcript reali di questa macchina:
+le uniche 4 righe `session_context` presenti sono state ripulite tutte, e i pochi residui trovati sono
+sempre dentro `message`/`toolUseResult`/`edited_text_file`, mai in una posizione strutturale.
+
 ---
 
 ## 5. Diagnostica e messaggi
@@ -280,7 +334,7 @@ legge un log senza avere accesso alla macchina, e la notifica lo riporta per ogn
 | 8 | la cartella della `cwd` esiste su questa macchina |
 | 9 | c'è almeno un messaggio `user`/`assistant` fuori dalle sidechain |
 | 10 | il transcript termina con un a-capo |
-| 11 | nessun `cwd` né percorso della cronologia dei file punta ancora sotto la radice di origine |
+| 11 | nessun `cwd`, percorso della cronologia dei file o cartella di lavoro di una riga `environment` punta ancora sotto la radice di origine |
 | 12 | l'ultimo timestamp cade al momento dell'import (±1 minuto) e nessuno è nel futuro |
 | 13 | ogni `backupFileName` richiamato dalle righe di cronologia esiste in `file-history/<id>/` |
 
@@ -352,12 +406,12 @@ aggiunto un `META-INF/` alla radice dello ZIP: lo ZIP di un plugin contiene una 
 
 ### 7.2 Versione
 
-`gradle.properties` → `pluginVersion=0.0.2`: il progetto è in sviluppo e non ha ancora versioni
+`gradle.properties` → `pluginVersion=0.0.3`: il progetto è in sviluppo e non ha ancora versioni
 rilasciate sul Marketplace.
 
 `CHANGELOG.md` contiene una sezione **datata** per versione, la più recente in cima:
-`## [0.0.2] - 2026-09-23`, `## [0.0.1] - 2026-09-23` e `## [0.0.0] - 2026-09-23`. Le sezioni precedenti non si cancellano mai. La
-data è obbligatoria:
+`## [0.0.3] - 2026-09-25`, `## [0.0.2] - 2026-09-23`, `## [0.0.1] - 2026-09-23` e
+`## [0.0.0] - 2026-09-23`. Le sezioni precedenti non si cancellano mai. La data è obbligatoria:
 alimenta l'intestazione `[versione] - [data]` del riquadro **What's New**. La sezione
 `## [Unreleased]` resta vuota, perché senza data non potrebbe alimentare quell'intestazione.
 
@@ -401,8 +455,8 @@ Marketplace*.
 
 1. `./gradlew test` verde.
 2. `./gradlew patchPluginXml`: in `build/tmp/patchPluginXml/plugin.xml` il `<name>` è
-   `Session Porter for Claude Code` e `<change-notes>` inizia con `[0.0.2] - 2026-09-23`.
-3. `./gradlew buildPlugin`: lo ZIP si chiama `session-porter-for-claude-code-0.0.2.zip` e il jar che contiene
+   `Session Porter for Claude Code` e `<change-notes>` inizia con `[0.0.3] - 2026-09-25`.
+3. `./gradlew buildPlugin`: lo ZIP si chiama `session-porter-for-claude-code-0.0.3.zip` e il jar che contiene
    include `icons/claudeSessions.svg`, `icons/claudeSessions_dark.svg`, `META-INF/pluginIcon.svg`,
    `META-INF/pluginIcon_dark.svg`, i dieci `messages/ClaudeSessionsBundle*.properties` e
    `META-INF/licenses/`; accanto al jar, in `lib/`, c'è solo `gson-2.11.0.jar`.
@@ -413,7 +467,7 @@ Marketplace*.
 6. `core/` non importa nulla da `com.intellij.*`.
 7. Ogni traduzione ha esattamente le chiavi del file inglese (`ClaudeSessionsBundleTest`).
 8. `README.md` e `CHANGELOG.md` descrivono ogni comportamento osservabile.
-9. Nessun riferimento a versioni del plugin diverse dalla 0.0.2 in codice, documentazione e messaggi
+9. Nessun riferimento a versioni del plugin diverse dalla 0.0.3 in codice, documentazione e messaggi
    utente, salvo i riferimenti storici: `CHANGELOG.md`, le richieste per versione di `AGENT.md`, la
    compatibilità con gli archivi delle versioni precedenti e l'informativa privacy, che vale dalla 0.0.0.
 10. `<vendor>` ha `url` ed `email` validi, e i link della descrizione rispondono sul branch `main`.

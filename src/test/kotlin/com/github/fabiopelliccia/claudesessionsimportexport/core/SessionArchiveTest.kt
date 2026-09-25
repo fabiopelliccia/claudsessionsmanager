@@ -537,4 +537,140 @@ class SessionArchiveTest {
         }
         assertEquals(exported.displayName, SessionArchive.readManifest(older).single().displayName)
     }
+
+    /** Reads one entry of [archive] as UTF-8 text, straight from the ZIP, before any import. */
+    private fun readArchiveEntry(archive: Path, entryName: String): String =
+        java.util.zip.ZipFile(archive.toFile()).use { zip ->
+            val entry = zip.getEntry(entryName) ?: error("no entry $entryName in $archive")
+            zip.getInputStream(entry).bufferedReader(Charsets.UTF_8).readText()
+        }
+
+    @Test
+    fun `export removes the account email, git identity and scratch path from the archive itself`() {
+        val sourceHome = tmp.newFolder("source18", ".claude").toPath()
+        val cwd = "C:\\Users\\fabio\\Demo18"
+        val projectDir = sourceHome.resolve("projects").resolve(ClaudePaths.encodeProjectPath(cwd))
+        Files.createDirectories(projectDir)
+        Files.write(
+            projectDir.resolve("session-18.jsonl"),
+            listOf(
+                """{"type":"user","message":{"role":"user","content":"hello"},"timestamp":"2026-01-01T00:00:00.000Z","cwd":"${cwd.asJsonString()}","sessionId":"session-18"}""",
+                """{"type":"attachment","attachment":{"type":"session_context","context":{"userEmail":"The user's email address is fabio.pelliccia@example.com.","gitStatus":"Git user: Fabio Pelliccia\nCurrent branch: develops"}},"rendered":[{"content":"<system-reminder>\n# userEmail\nThe user's email address is fabio.pelliccia@example.com.\n# gitStatus\nGit user: Fabio Pelliccia\nCurrent branch: develops\n</system-reminder>"}],"sessionId":"session-18"}""",
+                """{"type":"attachment","attachment":{"type":"environment","snapshot":{"workingDirectory":"${cwd.asJsonString()}","scratchpadDirectory":"C:\\Users\\fabio\\AppData\\Local\\Temp\\claude\\x\\scratchpad","platform":"win32"}},"sessionId":"session-18"}""",
+            ),
+        )
+        val session = SessionScanner.listSessions(sourceHome).single()
+
+        val archive = tmp.root.toPath().resolve("archive18.zip")
+        val outcome = SessionArchive.export(listOf(session), archive, home = sourceHome)
+        assertEquals(1, outcome.redactedIdentityLines)
+        assertEquals(1, outcome.redactedScratchpadPaths)
+
+        // Read the ZIP directly: the archive itself must already be clean, whether or not it is
+        // ever imported, and by whom.
+        val archivedText = readArchiveEntry(archive, "sessions/session-18/transcript.jsonl")
+        assertFalse(archivedText.contains("fabio.pelliccia"))
+        assertFalse(archivedText.contains("Fabio Pelliccia"))
+        assertTrue("the conversation itself is untouched", archivedText.contains("\"hello\""))
+
+        val lines = archivedText.trim().split("\n").map { JsonParser.parseString(it).asJsonObject }
+        val context = lines[1].getAsJsonObject("attachment").getAsJsonObject("context")
+        assertFalse(context.has("userEmail"))
+        assertFalse(context.has("gitStatus"))
+        val rendered = lines[1].getAsJsonArray("rendered").single().asJsonObject.get("content").asString
+        assertFalse(rendered.contains("fabio.pelliccia"))
+        assertTrue("the block itself survives, only the identity text is gone", rendered.contains("<system-reminder>"))
+
+        val envSnapshot = lines[2].getAsJsonObject("attachment").getAsJsonObject("snapshot")
+        assertFalse(envSnapshot.get("scratchpadDirectory").asString.contains("fabio"))
+        // The project folder is real project data, left for import-time relocation, not stripped here.
+        assertEquals(cwd, envSnapshot.get("workingDirectory").asString)
+    }
+
+    @Test
+    fun `a subagent transcript in the auxiliary folder is redacted the same way`() {
+        val sourceHome = tmp.newFolder("source19", ".claude").toPath()
+        val session = writeSourceSession(sourceHome, "session-19", "C:\\Users\\fabio\\Demo19")
+        val subagentsDir = sourceHome.resolve("projects").resolve(session.projectFolderName)
+            .resolve("session-19").resolve("subagents")
+        Files.createDirectories(subagentsDir)
+        Files.writeString(
+            subagentsDir.resolve("agent-1.jsonl"),
+            """{"type":"attachment","attachment":{"type":"session_context","context":{"userEmail":"fabio.pelliccia@example.com"}}}""" + "\n",
+        )
+
+        val archive = tmp.root.toPath().resolve("archive19.zip")
+        SessionArchive.export(listOf(session), archive, home = sourceHome)
+
+        val archived = readArchiveEntry(archive, "sessions/session-19/aux/subagents/agent-1.jsonl")
+        assertFalse(archived.contains("fabio.pelliccia@example.com"))
+    }
+
+    @Test
+    fun `the manifest no longer records the source machine's home path`() {
+        val sourceHome = tmp.newFolder("source20-fabio", ".claude").toPath()
+        val session = writeSourceSession(sourceHome, "session-20", "C:\\Users\\fabio\\Demo20")
+        val archive = tmp.root.toPath().resolve("archive20.zip")
+        SessionArchive.export(listOf(session), archive, home = sourceHome)
+
+        assertEquals(null, SessionArchive.readArchiveManifest(archive).sourceHome)
+    }
+
+    @Test
+    fun `export to import across two machines and two users leaves no trace of either and no conflict`() {
+        // "PC_1", used by alice: both her OS home folder and her project path name her.
+        val sourceHome = tmp.newFolder("pc1-alice-home", ".claude").toPath()
+        val sourceCwd = "C:\\Users\\alice\\Projects\\Shared"
+        val projectDir = sourceHome.resolve("projects").resolve(ClaudePaths.encodeProjectPath(sourceCwd))
+        Files.createDirectories(projectDir)
+        Files.writeString(
+            projectDir.resolve("session-21.jsonl"),
+            listOf(
+                """{"type":"user","message":{"role":"user","content":"add a test"},"timestamp":"2020-06-01T09:00:00.000Z","cwd":"${sourceCwd.asJsonString()}","sessionId":"session-21"}""",
+                """{"type":"attachment","attachment":{"type":"session_context","context":{"userEmail":"alice@example.com is the address","gitStatus":"Git user: Alice Example"}},"rendered":[{"content":"alice@example.com is the address / Git user: Alice Example"}],"timestamp":"2020-06-01T09:00:00.500Z","sessionId":"session-21"}""",
+                """{"type":"attachment","attachment":{"type":"environment","snapshot":{"workingDirectory":"${sourceCwd.asJsonString()}","additionalWorkingDirectories":["${"$sourceCwd\\vendor".asJsonString()}"],"scratchpadDirectory":"C:\\Users\\alice\\AppData\\Local\\Temp\\claude\\y\\scratchpad"}},"timestamp":"2020-06-01T09:00:01.000Z","sessionId":"session-21"}""",
+                """{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"done"}]},"timestamp":"2020-06-01T09:00:05.000Z","sessionId":"session-21"}""",
+            ).joinToString("\n") + "\n",
+        )
+        val session = SessionScanner.listSessions(sourceHome).single()
+
+        val archive = tmp.root.toPath().resolve("archive21.zip")
+        SessionArchive.export(listOf(session), archive, home = sourceHome)
+
+        // "PC_2", used by bob: a fresh, unrelated home, on another drive, under another account.
+        val targetHome = tmp.newFolder("pc2-bob-home", ".claude").toPath()
+        val targetCwd = "D:\\Users\\bob\\Projects\\Shared"
+        val outcome = SessionArchive.import(archive, home = targetHome, targetProjectPath = targetCwd)
+
+        val written = outcome.imported.single()
+        assertEquals("new", written.action) // no id already existed on PC_2: nothing to conflict with.
+        // Check #8 (the cwd folder exists on disk) is orthogonal to this test - "D:\..." is a stand-in
+        // path, not a real folder - and is exercised on its own elsewhere; what matters here is that
+        // nothing failed to parse and no path or identity from either machine survived (checks 2, 11).
+        assertEquals(emptyList<FailedCheck>(), outcome.failedChecks.filter { it.number != 8 })
+
+        val transcript = transcriptOf(targetHome, targetCwd, "session-21")
+        val lines = Files.readAllLines(transcript).map { JsonParser.parseString(it).asJsonObject }
+
+        // The conversation itself is untouched.
+        assertTrue(Files.readString(transcript).contains("\"add a test\""))
+
+        // Alice's identity is gone, not just remapped.
+        val context = lines[1].getAsJsonObject("attachment").getAsJsonObject("context")
+        assertFalse(context.has("userEmail"))
+        assertFalse(context.has("gitStatus"))
+        val rendered = lines[1].getAsJsonArray("rendered").single().asJsonObject.get("content").asString
+        assertFalse(rendered.contains("alice@example.com"))
+
+        // Both machines' project folders are gone from what PC_2 now has; bob's is there instead.
+        val envSnapshot = lines[2].getAsJsonObject("attachment").getAsJsonObject("snapshot")
+        assertEquals(targetCwd, envSnapshot.get("workingDirectory").asString)
+        assertEquals("$targetCwd\\vendor", envSnapshot.getAsJsonArray("additionalWorkingDirectories").single().asString)
+        assertFalse(envSnapshot.get("scratchpadDirectory").asString.contains("alice"))
+        assertEquals(targetCwd, lines[0].get("cwd").asString)
+
+        // The session reads as one that just happened on PC_2, not as a six-year-old one from PC_1.
+        val lastTimestamp = lines.mapNotNull { it.get("timestamp")?.asString }.map { Instant.parse(it) }.max()
+        assertTrue(Duration.between(lastTimestamp, Instant.now()).abs() < Duration.ofMinutes(1))
+    }
 }

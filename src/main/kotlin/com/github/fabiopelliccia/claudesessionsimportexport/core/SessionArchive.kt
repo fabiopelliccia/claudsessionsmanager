@@ -38,6 +38,11 @@ import kotlin.io.path.isRegularFile
  * format number, which only exists to refuse a layout this build cannot understand. On import only
  * the machine facing fields of the transcript are rewritten - see [TranscriptRewriter]; everything
  * else, in particular the conversation itself, is copied completely untouched.
+ *
+ * Every `.jsonl` file the export writes - the main transcript and any subagent transcript under the
+ * auxiliary folder - is first passed through [SessionRedactor], which removes the exporting user's
+ * own account email, git identity and Claude Code scratch folder path: the archive itself never
+ * carries them, regardless of who ends up reading it or whether it is ever imported at all.
  */
 object SessionArchive {
 
@@ -57,7 +62,12 @@ object SessionArchive {
         val exportedAt: String,
         val producer: String,
         val sessions: List<SessionInfo>,
-        /** Claude Code home of the source machine; informative only, written to the import log. */
+        /**
+         * Claude Code home of the source machine. It always embeds the exporting user's own OS
+         * account name (`C:\Users\<name>\.claude`, `/home/<name>/.claude`), so export no longer
+         * writes it from 0.0.3 on; the field stays nullable only so an archive an earlier version
+         * wrote, where it was informative only, still parses.
+         */
         val sourceHome: String? = null,
     )
 
@@ -77,6 +87,7 @@ object SessionArchive {
         val warnings = mutableListOf<String>()
         val exported = mutableListOf<SessionInfo>()
         var unreadable = 0
+        val redaction = SessionRedactor.Stats()
 
         Files.createDirectories(destination.toAbsolutePath().parent)
         ZipOutputStream(BufferedOutputStream(Files.newOutputStream(destination))).use { zip ->
@@ -92,10 +103,11 @@ object SessionArchive {
                     warnings += ClaudeSessionsBundle.message("export.warning.noTranscript", session.displayName)
                     return@forEachIndexed
                 }
-                // Read before the entry is opened: a file that fails half way must not leave a
-                // truncated transcript in the archive.
+                // Read, redact and re-encode before the entry is opened: a file that fails half way
+                // must not leave a truncated transcript in the archive.
                 val bytes = try {
-                    Files.readAllBytes(transcript)
+                    SessionRedactor.redact(Files.readString(transcript, StandardCharsets.UTF_8), redaction)
+                        .toByteArray(StandardCharsets.UTF_8)
                 } catch (e: IOException) {
                     unreadable++
                     warnings += ClaudeSessionsBundle.message("export.warning.unreadable", session.displayName, transcript)
@@ -105,13 +117,16 @@ object SessionArchive {
 
                 val auxDir = projectDir.resolve(session.id)
                 if (auxDir.isDirectory()) {
-                    unreadable += copyDirectoryToZip(auxDir, auxPrefix(session.id), zip) { file ->
+                    // A subagent run under here is a transcript of its own, in the same format, and
+                    // gets the same redaction pass; other files (tool results, ...) are copied as-is.
+                    unreadable += copyDirectoryToZip(auxDir, auxPrefix(session.id), zip, redaction) { file ->
                         warnings += ClaudeSessionsBundle.message("export.warning.unreadable", session.displayName, file)
                     }
                 }
                 val fileHistoryDir = ClaudePaths.fileHistoryDir(home).resolve(session.id)
                 if (fileHistoryDir.isDirectory()) {
-                    unreadable += copyDirectoryToZip(fileHistoryDir, fileHistoryPrefix(session.id), zip) { file ->
+                    // Raw backups of the user's own files, never a transcript: never redacted.
+                    unreadable += copyDirectoryToZip(fileHistoryDir, fileHistoryPrefix(session.id), zip, redaction = null) { file ->
                         warnings += ClaudeSessionsBundle.message("export.warning.unreadable", session.displayName, file)
                     }
                 }
@@ -124,12 +139,17 @@ object SessionArchive {
                 exportedAt = Instant.now().toString(),
                 producer = PRODUCER,
                 sessions = exported,
-                sourceHome = home.toAbsolutePath().toString(),
             )
             writeEntry(zip, MANIFEST_ENTRY, gson.toJson(manifest).toByteArray(StandardCharsets.UTF_8))
             progress.report(1.0, ClaudeSessionsBundle.message("progress.exportCompleted"))
         }
-        return ExportOutcome(exportedCount = exported.size, warnings = warnings, unreadableFiles = unreadable)
+        return ExportOutcome(
+            exportedCount = exported.size,
+            warnings = warnings,
+            unreadableFiles = unreadable,
+            redactedIdentityLines = redaction.redactedIdentityLines,
+            redactedScratchpadPaths = redaction.redactedScratchpadPaths,
+        )
     }
 
     // ----------------------------------------------------------------------------- manifest --
@@ -409,14 +429,30 @@ object SessionArchive {
     /**
      * Copies every file of [dir] below [entryPrefix]; a file that cannot be read is reported to
      * [onUnreadable] and left out instead of aborting the export. Returns how many were left out.
+     *
+     * [redaction] is non-`null` only for the auxiliary folder, whose `.jsonl` files (subagent runs)
+     * are transcripts in the same sense as the session's own and go through [SessionRedactor] too;
+     * every other file - and the whole of the file history folder, raw backups of the user's own
+     * files - is copied byte for byte.
      */
-    private fun copyDirectoryToZip(dir: Path, entryPrefix: String, zip: ZipOutputStream, onUnreadable: (Path) -> Unit): Int {
+    private fun copyDirectoryToZip(
+        dir: Path,
+        entryPrefix: String,
+        zip: ZipOutputStream,
+        redaction: SessionRedactor.Stats?,
+        onUnreadable: (Path) -> Unit,
+    ): Int {
         var unreadable = 0
         Files.walkFileTree(dir, object : SimpleFileVisitor<Path>() {
             override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
                 if (!attrs.isRegularFile) return FileVisitResult.CONTINUE
                 val bytes = try {
-                    Files.readAllBytes(file)
+                    if (redaction != null && file.fileName.toString().endsWith(".jsonl", ignoreCase = true)) {
+                        SessionRedactor.redact(Files.readString(file, StandardCharsets.UTF_8), redaction)
+                            .toByteArray(StandardCharsets.UTF_8)
+                    } else {
+                        Files.readAllBytes(file)
+                    }
                 } catch (e: IOException) {
                     unreadable++
                     onUnreadable(file)
