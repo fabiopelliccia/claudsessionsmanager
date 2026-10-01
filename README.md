@@ -8,7 +8,7 @@ Permette di scegliere puntualmente quali conversazioni esportare e quali riprist
 alla cartella di progetto della macchina di destinazione e di ritrovarle subito con
 `claude --resume`, datate come se fossero appena avvenute.
 
-> Versione di sviluppo **0.0.3**.
+> Versione di sviluppo **0.0.4**.
 
 ## Funzionalità
 
@@ -422,7 +422,7 @@ La coppia chiave/certificato si genera come descritto nella
 il token si crea dal profilo sul [Marketplace](https://plugins.jetbrains.com/author/me/tokens).
 
 Il canale di pubblicazione è dedotto da `pluginVersion`: una versione senza suffisso va sul canale
-`default`, mentre una pre-release come `0.0.3-beta.1` va sul canale omonimo (`beta`), visibile solo a
+`default`, mentre una pre-release come `0.0.4-beta.1` va sul canale omonimo (`beta`), visibile solo a
 chi lo ha aggiunto fra i repository dei plugin.
 
 ### Compatibilità

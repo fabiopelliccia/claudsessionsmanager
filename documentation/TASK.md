@@ -1,9 +1,9 @@
-# Work order 0.0.3 — Session Porter for Claude Code
+# Work order 0.0.4 — Session Porter for Claude Code
 
 > **Destinatario:** l'agente di sviluppo che lavora su questo repository.
 > **Ruolo:** sviluppatore del plugin IntelliJ qui contenuto.
 > **Istruzione:** leggi l'intero documento prima di toccare il codice. Descrive il perimetro
-> funzionale e i vincoli della **0.0.3**, la versione di sviluppo attuale: è la specifica di
+> funzionale e i vincoli della **0.0.4**, la versione di sviluppo attuale: è la specifica di
 > riferimento, non un elenco di modifiche incrementali. Ogni intervento futuro parte da qui e, al
 > termine, deve superare la checklist di §8.
 
@@ -97,7 +97,7 @@ descrive Claude Code (vedi §3).
 
 ---
 
-## 2. Perimetro funzionale della 0.0.3
+## 2. Perimetro funzionale della 0.0.4
 
 * **`Tools | Claude Code sessions | Export Sessions...`** — elenco di tutte le sessioni locali
   (nome, cartella, branch, data, messaggi, dimensione, id) con filtro e selezione multipla; salva la
@@ -412,11 +412,11 @@ aggiunto un `META-INF/` alla radice dello ZIP: lo ZIP di un plugin contiene una 
 
 ### 7.2 Versione
 
-`gradle.properties` → `pluginVersion=0.0.3`: il progetto è in sviluppo e non ha ancora versioni
+`gradle.properties` → `pluginVersion=0.0.4`: il progetto è in sviluppo e non ha ancora versioni
 rilasciate sul Marketplace.
 
 `CHANGELOG.md` contiene una sezione **datata** per versione, la più recente in cima:
-`## [0.0.3] - 2026-09-25`, `## [0.0.2] - 2026-09-23`, `## [0.0.1] - 2026-09-23` e
+`## [0.0.4] - 2026-10-01`, `## [0.0.3] - 2026-09-25`, `## [0.0.2] - 2026-09-23`, `## [0.0.1] - 2026-09-23` e
 `## [0.0.0] - 2026-09-23`. Le sezioni precedenti non si cancellano mai. La data è obbligatoria:
 alimenta l'intestazione `[versione] - [data]` del riquadro **What's New**. La sezione
 `## [Unreleased]` resta vuota, perché senza data non potrebbe alimentare quell'intestazione.
@@ -463,8 +463,8 @@ Marketplace*.
    *Verifica fra due PC* nel README): ogni nuovo campo che descrive la macchina va aggiunto anche
    alle sessioni di prova del PC_1, così il controllo "nessuna traccia di alice" lo copre.
 2. `./gradlew patchPluginXml`: in `build/tmp/patchPluginXml/plugin.xml` il `<name>` è
-   `Session Porter for Claude Code` e `<change-notes>` inizia con `[0.0.3] - 2026-09-25`.
-3. `./gradlew buildPlugin`: lo ZIP si chiama `session-porter-for-claude-code-0.0.3.zip` e il jar che contiene
+   `Session Porter for Claude Code` e `<change-notes>` inizia con `[0.0.4] - 2026-10-01`.
+3. `./gradlew buildPlugin`: lo ZIP si chiama `session-porter-for-claude-code-0.0.4.zip` e il jar che contiene
    include `icons/claudeSessions.svg`, `icons/claudeSessions_dark.svg`, `META-INF/pluginIcon.svg`,
    `META-INF/pluginIcon_dark.svg`, i dieci `messages/ClaudeSessionsBundle*.properties` e
    `META-INF/licenses/`; accanto al jar, in `lib/`, c'è solo `gson-2.11.0.jar`.
@@ -475,7 +475,7 @@ Marketplace*.
 6. `core/` non importa nulla da `com.intellij.*`.
 7. Ogni traduzione ha esattamente le chiavi del file inglese (`ClaudeSessionsBundleTest`).
 8. `README.md` e `CHANGELOG.md` descrivono ogni comportamento osservabile.
-9. Nessun riferimento a versioni del plugin diverse dalla 0.0.3 in codice, documentazione e messaggi
+9. Nessun riferimento a versioni del plugin diverse dalla 0.0.4 in codice, documentazione e messaggi
    utente, salvo i riferimenti storici: `CHANGELOG.md`, le richieste per versione di `AGENT.md`, la
    compatibilità con gli archivi delle versioni precedenti e l'informativa privacy, che vale dalla 0.0.0.
 10. `<vendor>` ha `url` ed `email` validi, e i link della descrizione rispondono sul branch `main`.
