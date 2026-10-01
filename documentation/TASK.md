@@ -412,8 +412,9 @@ aggiunto un `META-INF/` alla radice dello ZIP: lo ZIP di un plugin contiene una 
 
 ### 7.2 Versione
 
-`gradle.properties` → `pluginVersion=0.0.4`: il progetto è in sviluppo e non ha ancora versioni
-rilasciate sul Marketplace.
+`gradle.properties` → `pluginVersion=0.0.4`: è la prima versione pubblicata sul JetBrains Marketplace;
+le 0.0.0–0.0.3 sono state solo versioni di sviluppo. Ogni rilascio ha un tag annotato con il solo numero
+di versione (`0.0.4`) sul commit di merge in `main`, e segue la checklist *Rilascio* del README.
 
 `CHANGELOG.md` contiene una sezione **datata** per versione, la più recente in cima:
 `## [0.0.4] - 2026-10-01`, `## [0.0.3] - 2026-09-25`, `## [0.0.2] - 2026-09-23`, `## [0.0.1] - 2026-09-23` e
@@ -479,3 +480,5 @@ Marketplace*.
    utente, salvo i riferimenti storici: `CHANGELOG.md`, le richieste per versione di `AGENT.md`, la
    compatibilità con gli archivi delle versioni precedenti e l'informativa privacy, che vale dalla 0.0.0.
 10. `<vendor>` ha `url` ed `email` validi, e i link della descrizione rispondono sul branch `main`.
+11. La sezione della versione in `CHANGELOG.md` si legge come nota di rilascio per chi installa il
+    plugin dal Marketplace, e il tag `<versione>` è sul commit di merge in `main`.

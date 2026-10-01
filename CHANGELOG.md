@@ -9,10 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.0.4] - 2026-10-01
 
-Development version.
+First release published on the JetBrains Marketplace.
 
 ### Added
 
+- Export and import of Claude Code sessions in a portable ZIP archive, to move them to another machine
+  and another user: transcript, auxiliary folder (subagent runs, tool results) and the file history
+  behind checkpoints and `/rewind` travel together. On import the sessions are attached to a local
+  project folder, conflicts are resolved by skipping, replacing or importing a new copy, and the
+  timestamps are shifted so the sessions show up first in `claude --resume`, with no restart.
+- The archive never carries the exporting account's email, git identity or Claude Code scratch folder.
+- Every import writes a diagnostic log with thirteen numbered visibility checks.
+- The interface is available in English, Italian, French, German, Spanish, Portuguese, Japanese, Chinese
+  and Korean.
 - `CrossMachineTransferTest`, a battery of 14 end-to-end tests simulating the export on one machine
   (PC_1, user `alice`) and the import on another (PC_2, user `bob`) with different account names and
   paths: the source home is deleted and the archive moved before the import, and the sessions are

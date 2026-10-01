@@ -8,7 +8,7 @@ Permette di scegliere puntualmente quali conversazioni esportare e quali riprist
 alla cartella di progetto della macchina di destinazione e di ritrovarle subito con
 `claude --resume`, datate come se fossero appena avvenute.
 
-> Versione di sviluppo **0.0.4**.
+> Versione **0.0.4**, la prima pubblicata sul [JetBrains Marketplace](https://plugins.jetbrains.com/).
 
 ## Funzionalità
 
@@ -379,13 +379,8 @@ quella cartella e non toccano mai la `~/.claude` reale dello sviluppatore. Per a
 esportare basta copiarvi sotto `projects/` (e `file-history/`) qualche sessione; `./gradlew clean` la
 cancella insieme al resto di `build/`.
 
-Se su Windows Gradle si ferma con `java.io.IOException: Unable to establish loopback connection`, la JVM
-non riesce a creare il socket locale nella cartella temporanea di sistema (succede in ambienti che
-limitano l'accesso a `%TEMP%`). Basta indicarle un'altra cartella:
-
-```powershell
-mkdir -Force build\uds; $env:JAVA_TOOL_OPTIONS = "-Djdk.net.unixdomain.tmpdir=$PWD\build\uds"; .\gradlew.bat test
-```
+Se su Windows Gradle si ferma con `Unable to establish loopback connection`, vedi la
+[Nota per Windows](#nota-per-windows).
 
 La versione è in `gradle.properties` (`pluginVersion`). Le note di rilascio si scrivono in
 `CHANGELOG.md` nel formato *Keep a Changelog*: la sezione della versione corrente viene convertita in
@@ -471,13 +466,25 @@ Checklist prima di un rilascio:
 
 1. aggiornare `pluginVersion` in `gradle.properties`;
 2. aggiungere in `CHANGELOG.md` una sezione `## [<versione>] - <data>` **con la data**, lasciando
-   vuota `## [Unreleased]`;
-3. `./gradlew clean test verifyPlugin` senza errori;
-4. fare il merge su `main` e il push: i link della descrizione (licenza, privacy, sorgente) puntano
-   al branch `main` del repository e devono rispondere prima della pubblicazione;
-5. `./gradlew signPlugin publishPlugin` con le quattro variabili d'ambiente impostate.
+   vuota `## [Unreleased]`. Il Marketplace mostra solo quella sezione nel riquadro **What's New**: deve
+   descrivere la versione a chi la installa, non solo a chi sviluppa il plugin;
+3. sul branch `develops`, un commit `Release <versione>: ...`;
+4. il merge su `main` (`Merge develops into main for release <versione>`) e, su `main`,
+   `./gradlew clean test patchPluginXml buildPlugin verifyPlugin` senza errori: `<change-notes>` in
+   `build/tmp/patchPluginXml/plugin.xml` inizia con `[<versione>] - <data>` e lo ZIP si chiama
+   `session-porter-for-claude-code-<versione>.zip`;
+5. un tag annotato sul commit di merge, con il solo numero di versione come nome:
+   `git tag -a <versione> -m "Session Porter for Claude Code <versione>"`;
+6. il push di `main`, `develops` e del tag: i link della descrizione (licenza, privacy, sorgente,
+   issue tracker) puntano al branch `main` del repository e devono rispondere prima della
+   pubblicazione;
+7. `./gradlew signPlugin publishPlugin`, dal tag, con le quattro variabili d'ambiente impostate;
+8. sulla pagina del plugin nel Marketplace, controllare *Overview*, *What's New*, compatibilità e
+   canale della versione caricata.
 
-Il primo caricamento sul Marketplace passa per una **revisione manuale** di JetBrains e richiede un
+La **0.0.4** è la prima versione caricata sul Marketplace; le 0.0.0–0.0.3 sono rimaste versioni di
+sviluppo, distribuite solo come ZIP. Il primo caricamento passa per una **revisione manuale** di
+JetBrains, che può richiedere alcuni giorni lavorativi, e richiede un
 `pluginId` univoco (`com.github.fabiopelliccia.claudesessionsimportexport`), una `<description>` e un
 `<vendor>` compilati in `plugin.xml`, e una licenza: tutto è già presente in questo repository.
 
@@ -486,9 +493,16 @@ Il primo caricamento sul Marketplace passa per una **revisione manuale** di JetB
 Se la cartella temporanea è scritta in forma breve 8.3 (ad esempio
 `C:\Users\ABCDEF~1\AppData\Local\Temp`), Java non riesce ad aprire i propri socket locali e Gradle, i
 test e il Plugin Verifier si fermano con `Unable to establish loopback connection`. Basta indicare a
-Java una cartella con percorso lungo prima di lanciare Gradle:
+Java una cartella con percorso lungo prima di lanciare Gradle. Da PowerShell, con una cartella dentro
+`build/`:
 
-```bash
+```powershell
+mkdir -Force build\uds; $env:JAVA_TOOL_OPTIONS = "-Djdk.net.unixdomain.tmpdir=$PWD\build\uds"; .\gradlew.bat test
+```
+
+Dal prompt dei comandi:
+
+```bat
 set JAVA_TOOL_OPTIONS=-Djdk.net.unixdomain.tmpdir=C:\Users\<utente>\AppData\Local\Temp
 ```
 
