@@ -1,9 +1,9 @@
-# Work order 0.0.3 — Session Porter for Claude Code
+# Work order 0.0.4 — Session Porter for Claude Code
 
 > **Destinatario:** l'agente di sviluppo che lavora su questo repository.
 > **Ruolo:** sviluppatore del plugin IntelliJ qui contenuto.
 > **Istruzione:** leggi l'intero documento prima di toccare il codice. Descrive il perimetro
-> funzionale e i vincoli della **0.0.3**, la versione di sviluppo attuale: è la specifica di
+> funzionale e i vincoli della **0.0.4**, la versione di sviluppo attuale: è la specifica di
 > riferimento, non un elenco di modifiche incrementali. Ogni intervento futuro parte da qui e, al
 > termine, deve superare la checklist di §8.
 
@@ -87,7 +87,7 @@ descrive Claude Code (vedi §3).
 ### Comandi
 
 ```bash
-./gradlew test            # round-trip export/import, riscrittura, timestamp, diagnosi, traduzioni
+./gradlew test            # round-trip export/import, simulazione PC_1 → PC_2, riscrittura, timestamp, diagnosi, traduzioni
 ./gradlew patchPluginXml  # genera il plugin.xml finale (verifica di Overview e What's New)
 ./gradlew buildPlugin     # ZIP in build/distributions
 ./gradlew runIde          # IDE di prova, su build/claude-home-test invece di ~/.claude
@@ -97,7 +97,7 @@ descrive Claude Code (vedi §3).
 
 ---
 
-## 2. Perimetro funzionale della 0.0.3
+## 2. Perimetro funzionale della 0.0.4
 
 * **`Tools | Claude Code sessions | Export Sessions...`** — elenco di tutte le sessioni locali
   (nome, cartella, branch, data, messaggi, dimensione, id) con filtro e selezione multipla; salva la
@@ -236,6 +236,12 @@ contrattuali e verificate da `TranscriptRewriterTest`:
 contengono ciò che si sono detti utente e Claude e non vengono mai visitati (vincolo §1.3), nemmeno
 quando contengono un percorso o un timestamp. Allargare una lista significa rischiare di riscrivere un
 valore che appartiene alla conversazione: va fatto solo con un test che dimostri il contrario.
+
+Ogni transcript di subagent sotto la cartella ausiliaria (`<id>/subagents/agent-*.jsonl`) passa per lo
+**stesso** `TranscriptRewriter` della sessione (stesso nuovo id, stesso `PathMapper`, stesso scarto):
+registra `cwd`, `sessionId` e timestamp della macchina di origine esattamente come il transcript
+principale. Ogni altro file della cartella ausiliaria e tutta la cronologia dei file restano byte per
+byte. Il log riporta `aux.rewrittenTranscripts` e i campi `aux.changed.*`.
 
 Una riga in cui nessun campo cambia resta **byte per byte** com'era. Le altre vengono riemesse con
 Gson configurato con `serializeNulls()` e `disableHtmlEscaping()`, altrimenti i campi `null`
@@ -406,11 +412,12 @@ aggiunto un `META-INF/` alla radice dello ZIP: lo ZIP di un plugin contiene una 
 
 ### 7.2 Versione
 
-`gradle.properties` → `pluginVersion=0.0.3`: il progetto è in sviluppo e non ha ancora versioni
-rilasciate sul Marketplace.
+`gradle.properties` → `pluginVersion=0.0.4`: è la prima versione pubblicata sul JetBrains Marketplace;
+le 0.0.0–0.0.3 sono state solo versioni di sviluppo. Ogni rilascio ha un tag annotato con il solo numero
+di versione (`0.0.4`) sul commit di merge in `main`, e segue la checklist *Rilascio* del README.
 
 `CHANGELOG.md` contiene una sezione **datata** per versione, la più recente in cima:
-`## [0.0.3] - 2026-09-25`, `## [0.0.2] - 2026-09-23`, `## [0.0.1] - 2026-09-23` e
+`## [0.0.4] - 2026-10-01`, `## [0.0.3] - 2026-09-25`, `## [0.0.2] - 2026-09-23`, `## [0.0.1] - 2026-09-23` e
 `## [0.0.0] - 2026-09-23`. Le sezioni precedenti non si cancellano mai. La data è obbligatoria:
 alimenta l'intestazione `[versione] - [data]` del riquadro **What's New**. La sezione
 `## [Unreleased]` resta vuota, perché senza data non potrebbe alimentare quell'intestazione.
@@ -453,10 +460,12 @@ Marketplace*.
 
 ## 8. Checklist di verifica finale
 
-1. `./gradlew test` verde.
+1. `./gradlew test` verde, compresa la simulazione fra due PC di `CrossMachineTransferTest` (vedi
+   *Verifica fra due PC* nel README): ogni nuovo campo che descrive la macchina va aggiunto anche
+   alle sessioni di prova del PC_1, così il controllo "nessuna traccia di alice" lo copre.
 2. `./gradlew patchPluginXml`: in `build/tmp/patchPluginXml/plugin.xml` il `<name>` è
-   `Session Porter for Claude Code` e `<change-notes>` inizia con `[0.0.3] - 2026-09-25`.
-3. `./gradlew buildPlugin`: lo ZIP si chiama `session-porter-for-claude-code-0.0.3.zip` e il jar che contiene
+   `Session Porter for Claude Code` e `<change-notes>` inizia con `[0.0.4] - 2026-10-01`.
+3. `./gradlew buildPlugin`: lo ZIP si chiama `session-porter-for-claude-code-0.0.4.zip` e il jar che contiene
    include `icons/claudeSessions.svg`, `icons/claudeSessions_dark.svg`, `META-INF/pluginIcon.svg`,
    `META-INF/pluginIcon_dark.svg`, i dieci `messages/ClaudeSessionsBundle*.properties` e
    `META-INF/licenses/`; accanto al jar, in `lib/`, c'è solo `gson-2.11.0.jar`.
@@ -467,7 +476,9 @@ Marketplace*.
 6. `core/` non importa nulla da `com.intellij.*`.
 7. Ogni traduzione ha esattamente le chiavi del file inglese (`ClaudeSessionsBundleTest`).
 8. `README.md` e `CHANGELOG.md` descrivono ogni comportamento osservabile.
-9. Nessun riferimento a versioni del plugin diverse dalla 0.0.3 in codice, documentazione e messaggi
+9. Nessun riferimento a versioni del plugin diverse dalla 0.0.4 in codice, documentazione e messaggi
    utente, salvo i riferimenti storici: `CHANGELOG.md`, le richieste per versione di `AGENT.md`, la
    compatibilità con gli archivi delle versioni precedenti e l'informativa privacy, che vale dalla 0.0.0.
 10. `<vendor>` ha `url` ed `email` validi, e i link della descrizione rispondono sul branch `main`.
+11. La sezione della versione in `CHANGELOG.md` si legge come nota di rilascio per chi installa il
+    plugin dal Marketplace, e il tag `<versione>` è sul commit di merge in `main`.

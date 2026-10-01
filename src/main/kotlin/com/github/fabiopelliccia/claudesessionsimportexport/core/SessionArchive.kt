@@ -349,8 +349,14 @@ object SessionArchive {
             for ((field, count) in stats.changes) log.kv("transcript.changed.$field", count)
         }
 
-        val aux = extractEntries(zip, auxPrefix(session.id), targetDir.resolve(writtenId))
+        // A subagent run under the auxiliary folder is a transcript of its own, recorded on the same
+        // machine with the same `cwd`, `sessionId` and timestamps: it gets the same rewrite as the
+        // main transcript, or the source user's paths would survive there. Other files are copied as-is.
+        val auxStats = TranscriptRewriter.Stats()
+        val aux = extractEntries(zip, auxPrefix(session.id), targetDir.resolve(writtenId), rewriter.takeIf { !it.isIdentity }, auxStats)
         log.kv("aux.filesWritten", aux.written)
+        log.kv("aux.rewrittenTranscripts", aux.rewritten)
+        for ((field, count) in auxStats.changes) log.kv("aux.changed.$field", count)
         val fileHistory = extractEntries(zip, fileHistoryPrefix(session.id), ClaudePaths.fileHistoryDir(context.home).resolve(writtenId))
         log.kv("fileHistory.filesWritten", fileHistory.written)
         val discarded = aux.discarded + fileHistory.discarded
@@ -399,10 +405,21 @@ object SessionArchive {
         }
     }.getOrNull()
 
-    private class Extraction(val written: Int, val discarded: List<String>)
+    private class Extraction(val written: Int, val discarded: List<String>, val rewritten: Int = 0)
 
-    private fun extractEntries(zip: ZipFile, prefix: String, targetDir: Path): Extraction {
+    /**
+     * Extracts every entry below [prefix] into [targetDir]. With a [rewriter], `.jsonl` entries are
+     * transcripts and go through it; every other entry is copied byte for byte.
+     */
+    private fun extractEntries(
+        zip: ZipFile,
+        prefix: String,
+        targetDir: Path,
+        rewriter: TranscriptRewriter? = null,
+        stats: TranscriptRewriter.Stats = TranscriptRewriter.Stats(),
+    ): Extraction {
         var written = 0
+        var rewritten = 0
         val discarded = mutableListOf<String>()
         val entries = zip.entries()
         while (entries.hasMoreElements()) {
@@ -414,10 +431,16 @@ object SessionArchive {
                 continue
             }
             Files.createDirectories(target.parent)
-            zip.getInputStream(entry).use { input -> Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING) }
+            if (rewriter != null && entry.name.endsWith(".jsonl", ignoreCase = true)) {
+                val text = zip.getInputStream(entry).bufferedReader(StandardCharsets.UTF_8).readText()
+                Files.write(target, rewriter.rewrite(text, stats).toByteArray(StandardCharsets.UTF_8))
+                rewritten++
+            } else {
+                zip.getInputStream(entry).use { input -> Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING) }
+            }
             written++
         }
-        return Extraction(written, discarded)
+        return Extraction(written, discarded, rewritten)
     }
 
     /** Guards against zip-slip: refuses any entry whose resolved path escapes [base]. */

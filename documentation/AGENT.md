@@ -2,7 +2,7 @@
 
 Documento di origine del progetto: raccoglie, nella forma in cui sono stati espressi, i requisiti che
 hanno portato alla **0.0.0**, la prima versione di sviluppo, e le richieste successive fino alla
-**0.0.3**, quella attuale. Non è una specifica tecnica: la
+**0.0.4**, quella attuale. Non è una specifica tecnica: la
 specifica operativa, con vincoli, architettura e checklist, è `documentation/TASK.md`.
 
 Il progetto è il gemello di *Github Copilot sessions*, da cui questi due documenti sono stati
@@ -72,6 +72,16 @@ portabile e a ripristinarle dove servono.
 * **Versione `0.0.3`**, con le novità aggiunte al changelog senza togliere quelle delle versioni
   precedenti.
 
+### Richieste della 0.0.4
+
+* **Verifica dell'import su un altro PC senza averne uno.** Simulare il PC_1 che esporta e il PC_2 che
+  importa e visualizza le sessioni, con due macchine fisiche e due utenti diversi per nome e percorsi,
+  in una batteria di test.
+* **Rilascio sul JetBrains Marketplace.** La `0.0.4` è la prima versione da pubblicare sul Marketplace:
+  documentazione di rilascio aggiornata prima di creare il tag.
+* **Versione `0.0.4`**, con le novità aggiunte al changelog senza togliere quelle delle versioni
+  precedenti.
+
 ## Dove è finito ciascun requisito
 
 | Requisito | Documentazione |
@@ -85,4 +95,6 @@ portabile e a ripristinarle dove servono.
 | Icona, Overview, What's New, versione | `plugin.xml`, `build.gradle.kts`, `gradle.properties`, §7 di `TASK.md` |
 | Icona nel menu, logo, riavvii (0.0.1) | `README.md` → *Installazione e riavvii*, §3 e §7.1 di `TASK.md` |
 | Nome della sessione (0.0.2) | `README.md` → *Il nome della sessione*, §2 di `TASK.md` |
+| Rilascio sul JetBrains Marketplace (0.0.4) | `README.md` → *Pubblicazione sul JetBrains Marketplace* e *Rilascio*, `CHANGELOG.md`, §7.2 e §8 di `TASK.md` |
+| Simulazione PC_1 → PC_2 con utenti e percorsi diversi (0.0.4) | `README.md` → *Verifica fra due PC*, `CrossMachineTransferTest`, §4.3 e §8 di `TASK.md` |
 | Privacy dell'export, import fra macchine e utenti diversi (0.0.3) | `README.md` → *Privacy dell'export*, `PRIVACY.md`, §4.3 e §4.6 di `TASK.md` |
