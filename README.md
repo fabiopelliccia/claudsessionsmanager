@@ -199,6 +199,13 @@ livello della riga, lo `snapshot` delle righe `file-history-snapshot` (con la su
 | `timestamp`, `backupTime` (ISO-8601) | traslati, nella stessa forma in cui sono stati letti |
 | `startTime` (epoch in millisecondi, riga `cost-state`) | traslato |
 
+La stessa riscrittura, con lo stesso id e lo stesso scarto temporale, si applica a ogni transcript di
+subagent nella cartella ausiliaria (`<sessionId>/subagents/agent-*.jsonl`): è registrato sulla stessa
+macchina con la stessa `cwd`, lo stesso `sessionId` e gli stessi timestamp della sessione principale e,
+copiato così com'è, lascerebbe sulla macchina di destinazione il percorso dell'utente di origine. Gli
+altri file della cartella ausiliaria (risultati degli strumenti, `*.meta.json`, ...) e la cronologia dei
+file sono copiati byte per byte.
+
 Tutto il resto — in particolare `message`, `toolUseResult`, il resto di ogni `attachment` e qualunque
 percorso vi compaia — è ciò che si sono detti utente e Claude e **non viene mai toccato**. Le righe in cui nessuno
 di quei campi cambia vengono copiate byte per byte; le altre vengono riscritte conservando i campi
@@ -230,6 +237,49 @@ notifica e, con lo stack trace completo, nel log.
 L'export segnala i file che non è riuscito a leggere invece di produrre in silenzio un archivio
 incompleto, e solo in quel caso suggerisce di chiudere le sessioni di Claude Code che li usano e di
 ripetere l'export.
+
+## Verifica fra due PC
+
+Il caso d'uso del plugin — esportare dal **PC_1** e importare sul **PC_2**, due macchine fisiche
+diverse con utenti, nomi e percorsi diversi — è simulato per intero da `CrossMachineTransferTest`,
+senza bisogno di un secondo computer. Ogni test crea due "macchine" indipendenti, ciascuna con la
+propria home di Claude Code sotto il proprio account (`alice` sul PC_1, `bob` sul PC_2):
+
+* le sessioni del PC_1 riproducono la forma di transcript reali: attachment di identità
+  (`session_context`) e di ambiente (`environment`), checkpoint con i loro backup, una riga
+  `file-history-delta`, una riga `cost-state`, un subagent, risultati degli strumenti e un titolo
+  personalizzato; le cartelle di alice esistono solo come percorsi registrati, mai sul PC_2;
+* l'archivio viene copiato nella cartella *Downloads* del PC_2 con un altro nome e la home del PC_1
+  viene **cancellata** prima dell'import: il PC_2 ha a disposizione soltanto lo ZIP;
+* le cartelle di progetto di bob sono cartelle reali del PC_2, passate come le passa IntelliJ
+  (`C:/Users/bob/...`).
+
+"Le visualizza correttamente" è verificato come lo verifica `claude --resume`:
+
+| Scenario | Cosa viene verificato |
+|---|---|
+| Più sessioni, due progetti, un import per progetto | elencate tutte sul PC_2, nella cartella di `projects/` di bob, con lo stesso nome e lo stesso numero di messaggi delle tabelle di export e di import, e **tutti i 13 controlli** della diagnosi `OK` |
+| Nessuna traccia di alice | fuori dalla conversazione nessun file del PC_2 nomina `alice`; email e nome git non compaiono da nessuna parte; ciò che alice ha scritto resta identico |
+| L'archivio in uscita dal PC_1 | nessuna email, identità git né cartella temporanea; nessuna home di origine nel manifest |
+| Subagent | `cwd`, `sessionId` (anche sul duplicato) e timestamp seguono la sessione principale |
+| Checkpoint e `/rewind` | backup ripristinati; `trackedFileBackups`, `trackingPath` e `realParentDir` puntano ai file di bob |
+| Datazione | l'ultimo messaggio cade al momento dell'import sul PC_2, la spaziatura resta, `startTime` si sposta dello stesso scarto |
+| PC_2 senza Claude Code | la home viene creata dall'import |
+| Sessioni già presenti di bob | intatte byte per byte; quelle importate compaiono per prime |
+| Import ripetuto | *Duplicate* tiene due copie con id diversi, *Skip* e *Replace* una sola |
+| Sistemi operativi diversi | Linux → Windows, Windows → macOS, macOS → Linux, con i separatori del sistema di destinazione |
+| Nomi con spazi, accenti e apostrofi | `Zoë Müller` → `Bob O'Brien`, cartella di `projects/` codificata come la codifica Claude Code |
+| Import senza aggancio | la sessione resta nella cartella di alice e la diagnosi lo segnala con il controllo **#8** |
+| Home risolta come nell'IDE | import ed elenco tramite la property `claude.home` |
+| Andata e ritorno | PC_1 → PC_2 → PC_1: la sessione torna nella cartella di alice, accanto all'originale, senza tracce di bob |
+
+Nei casi con percorsi di un altro sistema operativo, o con le cartelle di alice reimportate sul PC_1,
+la cartella di destinazione non può esistere sulla macchina che esegue il test: lì è escluso il solo
+controllo #8 ("la cartella esiste su questa macchina").
+
+```bash
+./gradlew test --tests "*CrossMachineTransferTest*"
+```
 
 ## Log diagnostico dell'import
 
@@ -317,7 +367,7 @@ apostrofi siano raddoppiati solo dove `MessageFormat` lo richiede. Il nome del p
 ## Sviluppo
 
 ```bash
-./gradlew test            # round-trip export/import, riscrittura, timestamp, diagnosi, traduzioni
+./gradlew test            # round-trip export/import, simulazione PC_1 → PC_2, riscrittura, timestamp, diagnosi, traduzioni
 ./gradlew patchPluginXml  # plugin.xml finale in build/tmp/patchPluginXml (Overview e What's New)
 ./gradlew buildPlugin     # build/distributions/session-porter-for-claude-code-<versione>.zip
 ./gradlew runIde          # IDE di prova con il plugin installato
@@ -328,6 +378,14 @@ apostrofi siano raddoppiati solo dove `MessageFormat` lo richiede. Il nome del p
 quella cartella e non toccano mai la `~/.claude` reale dello sviluppatore. Per avere qualcosa da
 esportare basta copiarvi sotto `projects/` (e `file-history/`) qualche sessione; `./gradlew clean` la
 cancella insieme al resto di `build/`.
+
+Se su Windows Gradle si ferma con `java.io.IOException: Unable to establish loopback connection`, la JVM
+non riesce a creare il socket locale nella cartella temporanea di sistema (succede in ambienti che
+limitano l'accesso a `%TEMP%`). Basta indicarle un'altra cartella:
+
+```powershell
+mkdir -Force build\uds; $env:JAVA_TOOL_OPTIONS = "-Djdk.net.unixdomain.tmpdir=$PWD\build\uds"; .\gradlew.bat test
+```
 
 La versione è in `gradle.properties` (`pluginVersion`). Le note di rilascio si scrivono in
 `CHANGELOG.md` nel formato *Keep a Changelog*: la sezione della versione corrente viene convertita in

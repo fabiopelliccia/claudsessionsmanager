@@ -87,7 +87,7 @@ descrive Claude Code (vedi §3).
 ### Comandi
 
 ```bash
-./gradlew test            # round-trip export/import, riscrittura, timestamp, diagnosi, traduzioni
+./gradlew test            # round-trip export/import, simulazione PC_1 → PC_2, riscrittura, timestamp, diagnosi, traduzioni
 ./gradlew patchPluginXml  # genera il plugin.xml finale (verifica di Overview e What's New)
 ./gradlew buildPlugin     # ZIP in build/distributions
 ./gradlew runIde          # IDE di prova, su build/claude-home-test invece di ~/.claude
@@ -236,6 +236,12 @@ contrattuali e verificate da `TranscriptRewriterTest`:
 contengono ciò che si sono detti utente e Claude e non vengono mai visitati (vincolo §1.3), nemmeno
 quando contengono un percorso o un timestamp. Allargare una lista significa rischiare di riscrivere un
 valore che appartiene alla conversazione: va fatto solo con un test che dimostri il contrario.
+
+Ogni transcript di subagent sotto la cartella ausiliaria (`<id>/subagents/agent-*.jsonl`) passa per lo
+**stesso** `TranscriptRewriter` della sessione (stesso nuovo id, stesso `PathMapper`, stesso scarto):
+registra `cwd`, `sessionId` e timestamp della macchina di origine esattamente come il transcript
+principale. Ogni altro file della cartella ausiliaria e tutta la cronologia dei file restano byte per
+byte. Il log riporta `aux.rewrittenTranscripts` e i campi `aux.changed.*`.
 
 Una riga in cui nessun campo cambia resta **byte per byte** com'era. Le altre vengono riemesse con
 Gson configurato con `serializeNulls()` e `disableHtmlEscaping()`, altrimenti i campi `null`
@@ -453,7 +459,9 @@ Marketplace*.
 
 ## 8. Checklist di verifica finale
 
-1. `./gradlew test` verde.
+1. `./gradlew test` verde, compresa la simulazione fra due PC di `CrossMachineTransferTest` (vedi
+   *Verifica fra due PC* nel README): ogni nuovo campo che descrive la macchina va aggiunto anche
+   alle sessioni di prova del PC_1, così il controllo "nessuna traccia di alice" lo copre.
 2. `./gradlew patchPluginXml`: in `build/tmp/patchPluginXml/plugin.xml` il `<name>` è
    `Session Porter for Claude Code` e `<change-notes>` inizia con `[0.0.3] - 2026-09-25`.
 3. `./gradlew buildPlugin`: lo ZIP si chiama `session-porter-for-claude-code-0.0.3.zip` e il jar che contiene

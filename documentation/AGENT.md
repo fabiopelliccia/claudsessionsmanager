@@ -69,6 +69,9 @@ portabile e a ripristinarle dove servono.
   create localmente sul PC 2, con il timestamp di importazione del PC 2, non con quello di creazione
   del PC 1. Verificato: era già così dalla 0.0.0 (vedi *Datazione locale* sopra); riconfermato con un
   test end-to-end dedicato al trasferimento fra due macchine.
+* **Verifica dell'import su un altro PC senza averne uno.** Simulare il PC_1 che esporta e il PC_2 che
+  importa e visualizza le sessioni, con due macchine fisiche e due utenti diversi per nome e percorsi,
+  in una batteria di test.
 * **Versione `0.0.3`**, con le novità aggiunte al changelog senza togliere quelle delle versioni
   precedenti.
 
@@ -85,4 +88,5 @@ portabile e a ripristinarle dove servono.
 | Icona, Overview, What's New, versione | `plugin.xml`, `build.gradle.kts`, `gradle.properties`, §7 di `TASK.md` |
 | Icona nel menu, logo, riavvii (0.0.1) | `README.md` → *Installazione e riavvii*, §3 e §7.1 di `TASK.md` |
 | Nome della sessione (0.0.2) | `README.md` → *Il nome della sessione*, §2 di `TASK.md` |
+| Simulazione PC_1 → PC_2 con utenti e percorsi diversi | `README.md` → *Verifica fra due PC*, `CrossMachineTransferTest`, §4.3 e §8 di `TASK.md` |
 | Privacy dell'export, import fra macchine e utenti diversi (0.0.3) | `README.md` → *Privacy dell'export*, `PRIVACY.md`, §4.3 e §4.6 di `TASK.md` |

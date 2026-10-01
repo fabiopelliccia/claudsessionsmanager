@@ -40,6 +40,21 @@ Development version.
   no identity or scratch path left anywhere, every project folder correctly pointed at the destination,
   and every timestamp landing at import time on the destination machine, never at the source machine's
   original time - reconfirming a guarantee already in place since 0.0.0.
+- `CrossMachineTransferTest`, a battery of 14 end-to-end tests simulating the export on one machine
+  (PC_1, user `alice`) and the import on another (PC_2, user `bob`) with different account names and
+  paths: the source home is deleted and the archive moved before the import, and the sessions are
+  checked the way `claude --resume` lists them - folder, working directories, name, message count,
+  dates, checkpoints, subagents, no trace of the source user, every visibility check passing - across
+  operating systems, accented and spaced names, repeated imports, a destination that never ran Claude
+  Code and a round trip back to PC_1.
+
+### Fixed
+
+- Subagent transcripts (`<sessionId>/subagents/agent-*.jsonl`) are now rewritten on import exactly like
+  the main transcript: their `cwd` is pointed at the attached folder, their `sessionId` follows a
+  duplicated session's new id and their timestamps move by the same delta. They used to be copied as
+  they were, leaving the source user's project path, the old id and the original dates on the
+  destination machine. Every other auxiliary file is still copied byte for byte.
 
 ## [0.0.2] - 2026-09-23
 
