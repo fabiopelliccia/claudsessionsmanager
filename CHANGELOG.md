@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.5] - 2026-10-14
+
+### Fixed
+
+- Importing an archive made by another tool - for instance a GitHub Copilot sessions export, which also
+  has a `manifest.json` but no Claude Code transcripts - no longer fails with the obscure `Parameter
+  specified as non-null is null: ... SessionInfo.copy, parameter projectFolderName`. The archive is now
+  refused with a message that names the tool that created it.
+
 ## [0.0.4] - 2026-10-01
 
 First release published on the JetBrains Marketplace.

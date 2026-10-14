@@ -538,6 +538,23 @@ class SessionArchiveTest {
         assertEquals(exported.displayName, SessionArchive.readManifest(older).single().displayName)
     }
 
+    @Test
+    fun `an archive made by another tool is refused by name instead of failing on a null`() {
+        // The shape of a GitHub Copilot sessions export: a manifest.json of its own, no Claude Code fields.
+        val manifest = """
+            {"formatVersion":1,"producer":"IntelliJ Github Copilot sessions","sourceHome":"C:\\Users\\x\\.copilot",
+             "sessions":[{"id":"abc","name":"n","cwd":"c:\\x","turnCount":2,"hasState":true,"inStore":true}]}
+        """.trimIndent()
+        val foreign = tmp.root.toPath().resolve("archive18-foreign.zip")
+        java.util.zip.ZipOutputStream(Files.newOutputStream(foreign)).use { zip ->
+            zip.putNextEntry(java.util.zip.ZipEntry("manifest.json"))
+            zip.write(manifest.toByteArray(Charsets.UTF_8))
+            zip.closeEntry()
+        }
+
+        val error = org.junit.Assert.assertThrows(java.io.IOException::class.java) { SessionArchive.readManifest(foreign) }
+        assertTrue(error.message, error.message!!.contains("IntelliJ Github Copilot sessions"))
+    }
     /** Reads one entry of [archive] as UTF-8 text, straight from the ZIP, before any import. */
     private fun readArchiveEntry(archive: Path, entryName: String): String =
         java.util.zip.ZipFile(archive.toFile()).use { zip ->
