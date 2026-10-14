@@ -8,7 +8,7 @@ Permette di scegliere puntualmente quali conversazioni esportare e quali riprist
 alla cartella di progetto della macchina di destinazione e di ritrovarle subito con
 `claude --resume`, datate come se fossero appena avvenute.
 
-> Versione **0.0.4**, la prima pubblicata sul [JetBrains Marketplace](https://plugins.jetbrains.com/).
+> Versione **1.0.0**, la prima versione stabile, destinata al [JetBrains Marketplace](https://plugins.jetbrains.com/).
 
 ## Funzionalità
 
@@ -212,6 +212,52 @@ di quei campi cambia vengono copiate byte per byte; le altre vengono riscritte c
 `null`, senza trasformare `<`, `>`, `=`, `'`, `&` in sequenze `\u003c`, e mantenendo i fine riga,
 incluso l'a-capo finale, di cui Claude Code ha bisogno per accodare righe quando la sessione viene
 ripresa. Le righe illeggibili restano identiche.
+
+## Ritrovare le sessioni dopo l'import
+
+Terminato l'import, la sessione è un normale transcript di Claude Code: non esiste un elenco "importate"
+da consultare nel plugin. Per riprenderla si procede così.
+
+1. **Apri Claude Code nella cartella a cui hai agganciato la sessione**, cioè quella scelta nel campo
+   *Attach the imported sessions to this folder* del dialogo di import (di norma il progetto aperto
+   nell'IDE). L'elenco delle sessioni dipende dalla cartella da cui Claude Code viene avviato: da
+   un'altra cartella la sessione non compare.
+2. **Riprendila**, a scelta:
+   * da terminale, nella cartella: `claude --resume` mostra l'elenco e permette di sceglierla; con
+     `claude --resume <id>` la apre direttamente. Il comando pronto si copia dalla notifica che il
+     plugin mostra a fine import;
+   * da una sessione già aperta, il comando `/resume`;
+   * `claude --continue` apre la sessione più recente della cartella, che dopo un import con la
+     datazione "alla data di import" è proprio quella appena importata;
+   * dall'app desktop di Claude, scheda *Code*: apri la stessa cartella, la sessione compare fra
+     quelle del progetto, con il titolo che aveva nell'archivio.
+3. **Non serve riavviare** né l'IDE né Claude Code: l'elenco viene ricostruito leggendo i transcript a
+   ogni apertura.
+
+### Se la sessione non compare
+
+* **Cartella sbagliata.** È la causa più frequente. Verifica che Claude Code sia avviato nella
+  cartella scelta all'import e non in una sua sottocartella o in un'altra copia del progetto. Se
+  l'import è stato fatto senza agganciare la sessione a una cartella locale, la sessione è rimasta
+  legata al percorso della macchina di origine e compare solo avviando Claude Code esattamente da
+  quel percorso: in questo caso ripeti l'import con l'opzione attiva e *Replace* come gestione dei
+  conflitti.
+* **Controlla che il file ci sia.** I transcript importati stanno in
+  `~/.claude/projects/<cartella codificata>/<id>.jsonl` (su Windows
+  `C:\Users\<utente>\.claude\projects\`), accanto a una cartella `<id>` con i subagent. La cartella
+  codificata si ottiene dal percorso del progetto sostituendo con `-` ogni carattere che non sia una
+  lettera o una cifra: `C:\Users\bob\work\demo` → `C--Users-bob-work-demo`. Da PowerShell:
+
+  ```powershell
+  Get-ChildItem "$env:USERPROFILE\.claude\projects" -Recurse -Filter "<id>.jsonl"
+  ```
+
+* **Sessione già presente.** Se l'id esisteva già, la politica scelta decide cosa è successo: *Skip*
+  non ha importato nulla, *Replace* ha sostituito la copia locale, *Duplicate* ha creato una copia con
+  un **nuovo id**, che è quello da usare con `claude --resume`. Il nuovo id è nel log diagnostico.
+* **Import non riuscito.** Il log diagnostico (vedi *Log diagnostico dell'import*) elenca per ogni
+  sessione dove è stata scritta e le tredici verifiche di visibilità: un `KO` indica quale
+  condizione impedisce a Claude Code di elencarla.
 
 ## Gestione dei conflitti
 
@@ -482,8 +528,9 @@ Checklist prima di un rilascio:
 8. sulla pagina del plugin nel Marketplace, controllare *Overview*, *What's New*, compatibilità e
    canale della versione caricata.
 
-La **0.0.4** è la prima versione caricata sul Marketplace; le 0.0.0–0.0.3 sono rimaste versioni di
-sviluppo, distribuite solo come ZIP. Il primo caricamento passa per una **revisione manuale** di
+La **1.0.0** è la prima versione stabile destinata al Marketplace (la scheda, i testi, gli screenshot e i
+passi del primo caricamento sono in [`documentation/MARKETPLACE.md`](documentation/MARKETPLACE.md)); le
+0.0.0–0.0.5 sono rimaste versioni di sviluppo, distribuite solo come ZIP. Il primo caricamento passa per una **revisione manuale** di
 JetBrains, che può richiedere alcuni giorni lavorativi, e richiede un
 `pluginId` univoco (`com.github.fabiopelliccia.claudesessionsimportexport`), una `<description>` e un
 `<vendor>` compilati in `plugin.xml`, e una licenza: tutto è già presente in questo repository.

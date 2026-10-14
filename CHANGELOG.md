@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-14
+
+First stable release.
+
+### Added
+
+- The README now explains how to find and resume the sessions after an import (`claude --resume`,
+  `/resume`, `claude --continue`, the Claude desktop app) and what to check when one does not show up.
+- `documentation/MARKETPLACE.md` collects everything needed to list the plugin on the JetBrains
+  Marketplace: listing data, texts, screenshots to take, first manual upload, signing and publishing.
+
 ## [0.0.5] - 2026-10-14
 
 ### Fixed
