@@ -50,7 +50,6 @@ object SessionArchive {
     const val FORMAT_VERSION = 1
     const val PRODUCER = PluginNames.DISPLAY_NAME
     private const val MANIFEST_ENTRY = "manifest.json"
-
     private const val ACTION_NEW = "new"
     private const val ACTION_REPLACED = "replaced"
     private const val ACTION_DUPLICATED = "duplicated"
@@ -174,8 +173,26 @@ object SessionArchive {
             // The name is picked again from the archived transcript rather than trusted from the
             // manifest: an archive written by an earlier build carries the raw preview it computed,
             // and the import table has to show exactly what the export table showed.
-            return manifest.copy(sessions = sessions.map { session -> session.copy(summary = titleOf(zip, session)) })
+            return manifest.copy(
+                sessions = sessions
+                    .map { requireClaudeSession(it, manifest.producer) }
+                    .map { session -> session.copy(summary = titleOf(zip, session)) },
+            )
         }
+    }
+
+    /**
+     * Gson bypasses Kotlin's null checks, so a manifest written by another tool (for instance a
+     * GitHub Copilot sessions export, which has a `manifest.json` of its own shape) yields entries
+     * with null in fields declared non-null. Such an archive holds no Claude Code transcripts:
+     * it is refused here, by name, instead of failing later on a null.
+     */
+    @Suppress("SENSELESS_COMPARISON")
+    private fun requireClaudeSession(session: SessionInfo?, producer: String?): SessionInfo {
+        if (session == null || session.id == null || session.projectFolderName == null) {
+            throw IOException(ClaudeSessionsBundle.message("error.notClaudeArchive", producer ?: "?"))
+        }
+        return session
     }
 
     private fun titleOf(zip: ZipFile, session: SessionInfo): String? {
